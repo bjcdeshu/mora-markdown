@@ -41,10 +41,9 @@ android {
             storeFile = releaseStoreFile.orNull
                 ?.takeIf(String::isNotBlank)
                 ?.let(project::file)
-                ?: layout.buildDirectory.file("missing-mora-release-keystore.jks").get().asFile
-            storePassword = releaseStorePassword.orNull.orEmpty()
-            keyAlias = releaseKeyAlias.orNull.orEmpty()
-            keyPassword = releaseKeyPassword.orNull.orEmpty()
+            storePassword = releaseStorePassword.orNull?.takeIf(String::isNotBlank)
+            keyAlias = releaseKeyAlias.orNull?.takeIf(String::isNotBlank)
+            keyPassword = releaseKeyPassword.orNull?.takeIf(String::isNotBlank)
         }
     }
 

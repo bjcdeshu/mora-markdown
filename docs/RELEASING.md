@@ -10,19 +10,21 @@ exact-asset gate before the same Draft is made public as stable.
 
 ## v0.3.0 publication path
 
-1. Merge only a reviewed pull request with green CI, then confirm `main` CI passes
-   on the resulting commit.
-2. Manually run **Signed Android release** from that exact `main` commit. Download
+1. Merge only reviewed pull requests with green CI.
+2. Before building the candidate, finalize `versionCode`, `versionName`, and the
+   dated `CHANGELOG.md` heading in a release-finalization pull request. Merge it,
+   then confirm `main` CI passes on that resulting commit.
+3. Manually run **Signed Android release** from that exact `main` commit. Download
    its private Actions APK and SHA-256 sidecar, independently verify identity, and
    run the complete real-device matrix on that exact APK.
-3. Record the commit, APK SHA-256, devices, Android versions, file providers, and
+4. Record the commit, APK SHA-256, devices, Android versions, file providers, and
    results. An explicit maintainer approval is required before tagging.
-4. Create annotated stable tag `v0.3.0` on the same tested commit. The tag workflow
+5. Create annotated stable tag `v0.3.0` on the same tested commit. The tag workflow
    rebuilds and creates a hidden Draft Pre-release; it does not publish it.
-5. Download that exact Draft APK and sidecar. Repeat all identity checks and the
+6. Download that exact Draft APK and sidecar. Repeat all identity checks and the
    complete real-device matrix because this is a new build. Record a second
    explicit maintainer approval.
-6. Edit that same GitHub Release to `draft=false`, `prerelease=false`, and latest.
+7. Edit that same GitHub Release to `draft=false`, `prerelease=false`, and latest.
    Do not move the tag or replace either attachment. Redownload the public APK and
    confirm its SHA-256 is identical to the approved Draft APK.
 
@@ -97,9 +99,10 @@ device gate.
 
 ## Signed candidate
 
-After release infrastructure and the intended version are on `main`, run
-**Signed Android release** manually from the exact `main` commit selected for the
-candidate.
+After release infrastructure and the intended version are on `main`, finalize the
+dated changelog through normal review and CI. Only then run **Signed Android
+release** manually from the exact `main` commit selected for the candidate. Do
+not make a release-metadata commit between this build and its stable tag.
 
 The workflow:
 
@@ -195,12 +198,14 @@ Before tagging a stable version:
 
 1. confirm the exact protected `main` candidate passed the complete identity and
    real-device gate;
-2. increment `versionCode` for every distributed build;
-3. make `versionName` equal the tag without its leading `v`;
-4. replace `Unreleased` in the matching `CHANGELOG.md` heading with the release date;
-5. confirm the repository has an active `v*` tag ruleset that prevents deletion and non-fast-forward updates;
-6. run normal CI and obtain explicit maintainer approval;
-7. create an annotated `v<versionName>` tag on a commit contained in `main`.
+2. confirm `versionCode` was incremented for this distributed build;
+3. confirm `versionName` equals the tag without its leading `v`;
+4. confirm the matching `CHANGELOG.md` heading was dated before the candidate
+   build and contains no `Unreleased` marker;
+5. confirm no commit has been added to the tested `main` commit;
+6. confirm the repository has an active `v*` tag ruleset that prevents deletion and non-fast-forward updates;
+7. obtain explicit maintainer approval;
+8. create an annotated `v<versionName>` tag on the exact tested commit in `main`.
 
 Pushing a stable tag runs the same signed build and verification path. Only a tag
 push—not a manually selected tag ref—may invoke the release job. Unlike an `-rc.`

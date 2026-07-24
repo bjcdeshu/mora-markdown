@@ -9,27 +9,23 @@ class AppSettingsSheetTest {
     fun `Android 12 and below only follow the device language`() {
         assertEquals(
             AppLanguageSettingsState.FOLLOWS_DEVICE,
-            appLanguageSettingsState(sdkInt = 32, hasSettingsHandler = true),
-        )
-        assertEquals(
-            AppLanguageSettingsState.FOLLOWS_DEVICE,
-            appLanguageSettingsState(sdkInt = 32, hasSettingsHandler = false),
+            appLanguageSettingsState(sdkInt = 32),
         )
     }
 
     @Test
-    fun `Android 13 opens system app language settings when handled`() {
+    fun `Android 13 exposes system app language settings and checks launch at runtime`() {
         assertEquals(
             AppLanguageSettingsState.AVAILABLE,
-            appLanguageSettingsState(sdkInt = 33, hasSettingsHandler = true),
+            appLanguageSettingsState(sdkInt = 33),
         )
     }
 
     @Test
-    fun `Android 13 safely disables an unavailable system language entry`() {
+    fun `current Android keeps the system app language entry available`() {
         assertEquals(
-            AppLanguageSettingsState.UNAVAILABLE,
-            appLanguageSettingsState(sdkInt = 33, hasSettingsHandler = false),
+            AppLanguageSettingsState.AVAILABLE,
+            appLanguageSettingsState(sdkInt = 36),
         )
     }
 }

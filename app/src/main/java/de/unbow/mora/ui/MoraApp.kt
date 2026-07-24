@@ -275,9 +275,6 @@ fun MoraApp(
     val density = LocalDensity.current
     val maximumBackTranslation = with(density) { 24.dp.toPx() }
     val maximumBackCornerRadius = with(density) { 28.dp.toPx() }
-    val documentShape = RoundedCornerShape(
-        with(density) { predictiveBackTransform.cornerRadius.toDp() },
-    )
 
     Box(Modifier.fillMaxSize()) {
         HomeScreen(
@@ -355,8 +352,10 @@ fun MoraApp(
                         scaleX = predictiveBackTransform.scale
                         scaleY = predictiveBackTransform.scale
                         translationX = predictiveBackTransform.translation
+                        val cornerRadius = predictiveBackTransform.cornerRadius
+                        shape = RoundedCornerShape(cornerRadius.toDp())
+                        clip = cornerRadius > 0f
                     },
-                shape = documentShape,
                 color = colors.surface,
             ) {
                 DocumentScreen(

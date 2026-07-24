@@ -53,16 +53,13 @@ import kotlinx.coroutines.launch
 internal enum class AppLanguageSettingsState {
     FOLLOWS_DEVICE,
     AVAILABLE,
-    UNAVAILABLE,
 }
 
 internal fun appLanguageSettingsState(
     sdkInt: Int,
-    hasSettingsHandler: Boolean,
 ): AppLanguageSettingsState = when {
     sdkInt < Build.VERSION_CODES.TIRAMISU -> AppLanguageSettingsState.FOLLOWS_DEVICE
-    hasSettingsHandler -> AppLanguageSettingsState.AVAILABLE
-    else -> AppLanguageSettingsState.UNAVAILABLE
+    else -> AppLanguageSettingsState.AVAILABLE
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,14 +81,8 @@ internal fun AppSettingsSheet(
             null
         }
     }
-    val hasLanguageSettingsHandler = remember(context, languageIntent) {
-        languageIntent != null && runCatching {
-            languageIntent.resolveActivity(context.packageManager) != null
-        }.getOrDefault(false)
-    }
     val languageSettingsState = appLanguageSettingsState(
         sdkInt = Build.VERSION.SDK_INT,
-        hasSettingsHandler = hasLanguageSettingsHandler,
     )
     val currentLanguage = stringResource(R.string.current_ui_language_name)
 
@@ -359,9 +350,6 @@ private fun LanguageSettingsRow(
 
         AppLanguageSettingsState.AVAILABLE ->
             stringResource(R.string.language_change_in_android)
-
-        AppLanguageSettingsState.UNAVAILABLE ->
-            stringResource(R.string.language_settings_unavailable)
     }
 
     Surface(

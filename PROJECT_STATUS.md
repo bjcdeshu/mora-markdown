@@ -103,7 +103,7 @@ app/build/outputs/apk/debug/app-debug.apk
 Changes involving file providers, external intents, saving, layout, or accessibility also require focused emulator or real-device checks.
 
 The v0.3.0 preparation branch's full local run on 2026-07-25 passed all three
-tasks. The JVM suite ran 43 tests with no failures; lint completed with 0 errors
+tasks. The JVM suite ran 51 tests with no failures; lint completed with 0 errors
 and 11 non-blocking follow-up warnings; the Debug APK assembled successfully. A
 fresh clean run and the same green GitHub Actions gate remain required before
 merge. No lint baseline or new suppression was introduced.
