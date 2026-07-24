@@ -46,6 +46,10 @@ internal data class PredictiveDocumentBackFrame(
     }
 }
 
+// Mora uses a product-specific spatial reveal for its text-dense Document-to-Home
+// transition. These values intentionally differ from Android's full-screen
+// fade-through motion spec; the destination remains visible underneath from the
+// start of the gesture.
 private const val PredictiveBackMaximumTranslationFraction = 0.45f
 private const val PredictiveBackDocumentFadeStart = 0.8f
 private val PredictiveBackEasing = CubicBezierEasing(0.1f, 0.1f, 0f, 1f)
