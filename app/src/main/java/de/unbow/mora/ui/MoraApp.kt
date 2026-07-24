@@ -3,13 +3,13 @@ package de.unbow.mora.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -17,40 +17,95 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.unbow.mora.IncomingDocumentRequest
+import de.unbow.mora.R
+import de.unbow.mora.data.AppSettings
+import de.unbow.mora.data.DocumentFailure
 import de.unbow.mora.data.DocumentRepository
 import de.unbow.mora.data.ReaderSettingsRepository
 import de.unbow.mora.markdown.ReaderPalette
 import de.unbow.mora.markdown.ReaderPreferences
+import de.unbow.mora.model.DocumentSaveResult
+import de.unbow.mora.model.DocumentUiError
 import de.unbow.mora.model.MarkdownViewModel
+import de.unbow.mora.model.displayDocumentName
+import de.unbow.mora.ui.theme.LocalMoraIsDark
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+internal data class ReaderScrollSession(
+    val sessionId: Long = Long.MIN_VALUE,
+    val scrollY: Int = 0,
+)
+
+internal fun resolveReaderScrollSession(
+    current: ReaderScrollSession,
+    hasDocument: Boolean,
+    sessionId: Long,
+    initialScrollY: Int,
+): ReaderScrollSession = when {
+    !hasDocument -> ReaderScrollSession()
+    current.sessionId == sessionId -> current
+    else -> ReaderScrollSession(
+        sessionId = sessionId,
+        scrollY = initialScrollY.coerceAtLeast(0),
+    )
+}
+
 @Composable
 fun MoraApp(
+    appSettings: AppSettings,
+    onAppSettingsChanged: (AppSettings) -> Boolean,
     incomingRequest: IncomingDocumentRequest?,
     onIncomingRequestConsumed: (Long) -> Unit,
     markdownViewModel: MarkdownViewModel = viewModel(),
 ) {
     val context = LocalContext.current
     val state = markdownViewModel.uiState
+    val pendingIncomingRequest = markdownViewModel.pendingIncomingRequest
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val storedReaderPreferences = remember(context) { ReaderSettingsRepository.load(context) }
+    val effectiveDark = LocalMoraIsDark.current
+    val defaultDocumentFilename = stringResource(R.string.default_document_filename)
+    val untitledFilenameBase = stringResource(R.string.untitled_filename_base)
+    val untitledDocumentFilename = stringResource(R.string.untitled_document_filename)
+    val newDraftTemplate = stringResource(R.string.new_draft_template)
+    val untitledHeading = stringResource(R.string.untitled_heading)
+    val savedMessage = stringResource(R.string.document_saved)
+    val saveFailedMessage = stringResource(R.string.document_save_failed)
+    val saveAsRequiredMessage = stringResource(R.string.document_requires_save_as)
+    val readOnlyNotice = stringResource(R.string.read_only_document_notice)
+    val languageSettingsUnavailable = stringResource(R.string.language_settings_unavailable)
+    val launcherIconChangeFailed = stringResource(R.string.launcher_icon_change_failed)
+    val displayedDocumentName = displayDocumentName(
+        storedName = state.name,
+        usesLocalizedFallback = state.nameUsesLocalizedFallback,
+        localizedFallback = defaultDocumentFilename,
+    )
 
     var mode by rememberSaveable { mutableStateOf(DocumentMode.READING) }
-    var showAppearance by rememberSaveable { mutableStateOf(false) }
+    var showReaderAppearance by rememberSaveable { mutableStateOf(false) }
+    var showAppSettings by rememberSaveable { mutableStateOf(false) }
     var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
-    var pendingIncomingRequest by remember { mutableStateOf<IncomingDocumentRequest?>(null) }
     var fontSize by rememberSaveable {
         mutableFloatStateOf(storedReaderPreferences.fontSizePx)
     }
@@ -60,7 +115,13 @@ fun MoraApp(
     var horizontalPadding by rememberSaveable {
         mutableFloatStateOf(storedReaderPreferences.horizontalPaddingPx)
     }
+    var readerScrollSessionId by rememberSaveable {
+        mutableLongStateOf(Long.MIN_VALUE)
+    }
     var readerScrollY by rememberSaveable { mutableIntStateOf(0) }
+    var predictiveBackTransform by remember {
+        mutableStateOf(PredictiveDocumentBackTransform.Identity)
+    }
 
     fun currentPreferences() = ReaderPreferences(
         fontSizePx = fontSize,
@@ -73,22 +134,31 @@ fun MoraApp(
     }
 
     fun openDocument(uri: Uri) {
+        showReaderAppearance = false
+        showAppSettings = false
         readerScrollY = 0
         mode = DocumentMode.READING
-        markdownViewModel.openDocument(context, uri)
+        markdownViewModel.openDocument(
+            context = context,
+            uri = uri,
+            fallbackName = defaultDocumentFilename,
+        )
     }
 
     fun acceptIncoming(request: IncomingDocumentRequest) {
+        markdownViewModel.clearPendingIncomingRequest()
         val uri = request.uri
         if (uri != null) {
             DocumentRepository.persistPermission(context, uri, request.grantedFlags)
             openDocument(uri)
         } else {
+            showReaderAppearance = false
+            showAppSettings = false
             readerScrollY = 0
             mode = DocumentMode.READING
             markdownViewModel.openSharedText(
                 content = request.sharedText.orEmpty(),
-                name = normalizedMarkdownName(request.suggestedName),
+                name = request.suggestedName,
             )
         }
         onIncomingRequestConsumed(request.id)
@@ -101,37 +171,76 @@ fun MoraApp(
     LaunchedEffect(incomingRequest?.id) {
         val request = incomingRequest ?: return@LaunchedEffect
         markdownViewModel.initialize(context)
-        showAppearance = false
+        showReaderAppearance = false
+        showAppSettings = false
         showDiscardDialog = false
         request.uri?.let { uri ->
             DocumentRepository.persistPermission(context, uri, request.grantedFlags)
         }
         if (state.hasDocument && state.isDirty) {
-            pendingIncomingRequest = request
+            markdownViewModel.deferIncomingRequest(request)
         } else {
             acceptIncoming(request)
         }
     }
 
-    LaunchedEffect(state.contentVersion, state.isLoading) {
-        if (state.hasDocument && !state.isLoading) {
-            readerScrollY = state.initialScrollY
+    LaunchedEffect(state.hasDocument, state.sessionId, state.initialScrollY) {
+        val resolved = resolveReaderScrollSession(
+            current = ReaderScrollSession(
+                sessionId = readerScrollSessionId,
+                scrollY = readerScrollY,
+            ),
+            hasDocument = state.hasDocument,
+            sessionId = state.sessionId,
+            initialScrollY = state.initialScrollY,
+        )
+        readerScrollSessionId = resolved.sessionId
+        readerScrollY = resolved.scrollY
+    }
+
+    LaunchedEffect(state.hasDocument) {
+        if (state.hasDocument) {
+            showAppSettings = false
+        } else {
+            showReaderAppearance = false
+            predictiveBackTransform = PredictiveDocumentBackTransform.Identity
         }
     }
 
-    LaunchedEffect(state.errorMessage) {
-        val message = state.errorMessage ?: return@LaunchedEffect
+    LaunchedEffect(state.sessionId) {
+        predictiveBackTransform = PredictiveDocumentBackTransform.Identity
+    }
+
+    val localizedError = when (val error = state.error) {
+        is DocumentUiError.OpenFailed -> stringResource(
+            R.string.open_document_failed,
+            displayDocumentName(
+                storedName = error.documentName,
+                usesLocalizedFallback = error.usesLocalizedFallback,
+                localizedFallback = defaultDocumentFilename,
+            ),
+        )
+
+        null -> null
+    }
+    LaunchedEffect(state.error, localizedError) {
+        val message = localizedError ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
         markdownViewModel.consumeError()
     }
 
-    val notifySave: (Result<Unit>) -> Unit = { result ->
+    val notifySave: (DocumentSaveResult) -> Unit = { result ->
         scope.launch {
             snackbarHostState.showSnackbar(
-                result.fold(
-                    onSuccess = { "已保存" },
-                    onFailure = { it.message ?: "保存失败" },
-                ),
+                when (result) {
+                    DocumentSaveResult.Saved -> savedMessage
+                    is DocumentSaveResult.Failed -> when (result.failure) {
+                        DocumentFailure.SAVE_AS_REQUIRED -> saveAsRequiredMessage
+                        DocumentFailure.READ_FAILED,
+                        DocumentFailure.WRITE_FAILED,
+                        -> saveFailedMessage
+                    }
+                },
             )
         }
     }
@@ -153,6 +262,8 @@ fun MoraApp(
     }
 
     val closeDocument: () -> Unit = {
+        showReaderAppearance = false
+        showAppSettings = false
         if (state.isDirty) {
             showDiscardDialog = true
         } else {
@@ -161,40 +272,54 @@ fun MoraApp(
         }
     }
 
-    AnimatedContent(
-        targetState = state.hasDocument,
-        transitionSpec = { fadeIn() togetherWith fadeOut() },
-        label = "home-document",
-    ) { hasDocument ->
-        if (!hasDocument) {
-            HomeScreen(
-                recentDocuments = markdownViewModel.recentDocuments,
-                snackbarHostState = snackbarHostState,
-                onOpenFile = {
-                    openDocumentLauncher.launch(
-                        arrayOf(
-                            "text/markdown",
-                            "text/x-markdown",
-                            "application/x-markdown",
-                            "text/plain",
-                            "application/octet-stream",
-                        ),
-                    )
-                },
-                onNewDraft = {
-                    readerScrollY = 0
-                    mode = DocumentMode.EDITING
-                    markdownViewModel.newDraft()
-                },
-                onOpenRecent = { document ->
-                    openDocument(document.uri)
-                },
-                onRemoveRecent = { document ->
-                    markdownViewModel.removeRecent(context, document)
-                },
-                onSettings = { showAppearance = true },
-            )
-        } else {
+    val density = LocalDensity.current
+    val maximumBackTranslation = with(density) { 24.dp.toPx() }
+    val maximumBackCornerRadius = with(density) { 28.dp.toPx() }
+
+    Box(Modifier.fillMaxSize()) {
+        HomeScreen(
+            modifier = if (state.hasDocument) {
+                Modifier.clearAndSetSemantics {}
+            } else {
+                Modifier
+            },
+            recentDocuments = markdownViewModel.recentDocuments,
+            snackbarHostState = snackbarHostState,
+            showSnackbarHost = !state.hasDocument,
+            interactive = !state.hasDocument,
+            onOpenFile = {
+                openDocumentLauncher.launch(
+                    arrayOf(
+                        "text/markdown",
+                        "text/x-markdown",
+                        "application/x-markdown",
+                        "text/plain",
+                        "application/octet-stream",
+                    ),
+                )
+            },
+            onNewDraft = {
+                showAppSettings = false
+                readerScrollY = 0
+                mode = DocumentMode.EDITING
+                markdownViewModel.newDraft(
+                    name = untitledDocumentFilename,
+                    initialContent = newDraftTemplate,
+                )
+            },
+            onOpenRecent = { document ->
+                openDocument(document.uri)
+            },
+            onRemoveRecent = { document ->
+                markdownViewModel.removeRecent(context, document)
+            },
+            onSettings = {
+                showReaderAppearance = false
+                showAppSettings = true
+            },
+        )
+
+        if (state.hasDocument) {
             var editorValue by remember(state.contentVersion) {
                 mutableStateOf(TextFieldValue(state.content))
             }
@@ -211,57 +336,142 @@ fun MoraApp(
                 )
             }
 
-            DocumentScreen(
-                documentKey = state.sessionId,
-                documentUri = state.uri,
-                name = state.name,
-                dirty = state.isDirty,
-                loading = state.isLoading,
-                markdown = state.content,
-                editorValue = editorValue,
-                mode = mode,
-                palette = palette,
-                preferences = currentPreferences(),
-                readerScrollY = readerScrollY,
-                snackbarHostState = snackbarHostState,
-                onReaderPositionChanged = { uri, position ->
-                    if (uri == markdownViewModel.uiState.uri) {
-                        readerScrollY = position
-                    }
-                    markdownViewModel.updateReadingPosition(context, uri, position)
-                },
-                onModeChanged = { newMode ->
-                    mode = newMode
-                    if (
-                        newMode == DocumentMode.EDITING &&
-                        state.uri != null &&
-                        !state.canWrite
-                    ) {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("原文件为只读，修改后将另存为")
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(state.sessionId) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                awaitPointerEvent(PointerEventPass.Final)
+                                    .changes
+                                    .forEach { it.consume() }
+                            }
                         }
                     }
-                },
-                onBack = closeDocument,
-                onAppearance = { showAppearance = true },
-                onSave = {
-                    if (state.uri == null || !state.canWrite) {
-                        createDocument.launch(normalizedMarkdownName(state.name))
-                    } else {
-                        markdownViewModel.save(context, notifySave)
-                    }
-                },
-                onEditorChanged = { value ->
-                    editorValue = value
-                    markdownViewModel.updateContent(value.text)
-                },
-            )
+                    .graphicsLayer {
+                        scaleX = predictiveBackTransform.scale
+                        scaleY = predictiveBackTransform.scale
+                        translationX = predictiveBackTransform.translation
+                        val cornerRadius = predictiveBackTransform.cornerRadius
+                        shape = RoundedCornerShape(cornerRadius.toDp())
+                        clip = cornerRadius > 0f
+                    },
+                color = colors.surface,
+            ) {
+                DocumentScreen(
+                    documentKey = state.sessionId,
+                    documentUri = state.uri,
+                    name = displayedDocumentName,
+                    dirty = state.isDirty,
+                    loading = state.isLoading,
+                    markdown = state.content,
+                    editorValue = editorValue,
+                    mode = mode,
+                    palette = palette,
+                    preferences = currentPreferences(),
+                    effectiveDark = effectiveDark,
+                    untitledHeading = untitledHeading,
+                    readerScrollY = readerScrollY,
+                    snackbarHostState = snackbarHostState,
+                    onReaderPositionChanged = { uri, position ->
+                        if (uri == markdownViewModel.uiState.uri) {
+                            readerScrollSessionId = markdownViewModel.uiState.sessionId
+                            readerScrollY = position
+                        }
+                        markdownViewModel.updateReadingPosition(context, uri, position)
+                    },
+                    onModeChanged = { newMode ->
+                        mode = newMode
+                        if (
+                            newMode == DocumentMode.EDITING &&
+                            state.uri != null &&
+                            !state.canWrite
+                        ) {
+                            scope.launch {
+                                snackbarHostState.showSnackbar(readOnlyNotice)
+                            }
+                        }
+                    },
+                    onBack = closeDocument,
+                    predictiveBackBlocked = showReaderAppearance ||
+                        showDiscardDialog ||
+                        pendingIncomingRequest != null,
+                    onPredictiveBackProgress = { gestureKey, progress, swipeEdge ->
+                        if (markdownViewModel.uiState.sessionId == gestureKey) {
+                            predictiveBackTransform = calculatePredictiveDocumentBackTransform(
+                                progress = progress,
+                                swipeEdge = swipeEdge,
+                                maximumTranslation = maximumBackTranslation,
+                                maximumCornerRadius = maximumBackCornerRadius,
+                            )
+                        }
+                    },
+                    onPredictiveBackCancelled = { gestureKey ->
+                        if (markdownViewModel.uiState.sessionId == gestureKey) {
+                            predictiveBackTransform = PredictiveDocumentBackTransform.Identity
+                        }
+                    },
+                    onPredictiveBackCompleted = { gestureKey ->
+                        val currentState = markdownViewModel.uiState
+                        if (
+                            currentState.hasDocument &&
+                            currentState.sessionId == gestureKey &&
+                            !currentState.isDirty
+                        ) {
+                            showReaderAppearance = false
+                            showAppSettings = false
+                            readerScrollY = 0
+                            markdownViewModel.closeDocument()
+                        } else {
+                            predictiveBackTransform =
+                                PredictiveDocumentBackTransform.Identity
+                        }
+                    },
+                    onAppearance = {
+                        showAppSettings = false
+                        showReaderAppearance = true
+                    },
+                    onSave = {
+                        if (state.uri == null || !state.canWrite) {
+                            createDocument.launch(
+                                normalizedMarkdownName(
+                                    displayedDocumentName,
+                                    untitledFilenameBase,
+                                ),
+                            )
+                        } else {
+                            markdownViewModel.save(context, notifySave)
+                        }
+                    },
+                    onEditorChanged = { value ->
+                        editorValue = value
+                        markdownViewModel.updateContent(value.text)
+                    },
+                )
+            }
         }
     }
 
-    if (showAppearance) {
+    if (showAppSettings && !state.hasDocument) {
+        AppSettingsSheet(
+            appSettings = appSettings,
+            onAppSettingsChanged = onAppSettingsChanged,
+            onLauncherIconChangeFailed = {
+                scope.launch {
+                    snackbarHostState.showSnackbar(launcherIconChangeFailed)
+                }
+            },
+            onLanguageSettingsUnavailable = {
+                scope.launch {
+                    snackbarHostState.showSnackbar(languageSettingsUnavailable)
+                }
+            },
+            onDismiss = { showAppSettings = false },
+        )
+    }
+
+    if (showReaderAppearance && state.hasDocument) {
         AppearanceSheet(
-            title = if (state.hasDocument) "阅读排版" else "阅读设置",
             fontSize = fontSize,
             lineHeight = lineHeight,
             horizontalPadding = horizontalPadding,
@@ -283,26 +493,30 @@ fun MoraApp(
                 horizontalPadding = ReaderPreferences.Default.horizontalPaddingPx
                 persistReaderPreferences()
             },
-            onDismiss = { showAppearance = false },
+            onDismiss = { showReaderAppearance = false },
         )
     }
 
     if (showDiscardDialog) {
         AlertDialog(
             onDismissRequest = { showDiscardDialog = false },
-            title = { Text("放弃未保存的修改？") },
-            text = { Text("返回后，当前文档中的修改不会保留。") },
+            title = { Text(stringResource(R.string.discard_changes_title)) },
+            text = { Text(stringResource(R.string.discard_changes_body)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showDiscardDialog = false
+                        showReaderAppearance = false
+                        showAppSettings = false
                         readerScrollY = 0
                         markdownViewModel.closeDocument()
                     },
-                ) { Text("放弃修改") }
+                ) { Text(stringResource(R.string.discard_changes)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDiscardDialog = false }) { Text("取消") }
+                TextButton(onClick = { showDiscardDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
             },
         )
     }
@@ -310,33 +524,32 @@ fun MoraApp(
     pendingIncomingRequest?.let { request ->
         AlertDialog(
             onDismissRequest = {
-                pendingIncomingRequest = null
+                markdownViewModel.clearPendingIncomingRequest(request.id)
                 onIncomingRequestConsumed(request.id)
             },
-            title = { Text("打开新文档？") },
-            text = { Text("当前文档还有未保存的修改。继续后，这些修改不会保留。") },
+            title = { Text(stringResource(R.string.open_new_document_title)) },
+            text = { Text(stringResource(R.string.open_new_document_body)) },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        pendingIncomingRequest = null
                         acceptIncoming(request)
                     },
-                ) { Text("放弃并打开") }
+                ) { Text(stringResource(R.string.discard_and_open)) }
             },
             dismissButton = {
                 TextButton(
                     onClick = {
-                        pendingIncomingRequest = null
+                        markdownViewModel.clearPendingIncomingRequest(request.id)
                         onIncomingRequestConsumed(request.id)
                     },
-                ) { Text("取消") }
+                ) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
 }
 
-private fun normalizedMarkdownName(name: String): String {
-    val trimmed = name.trim().ifEmpty { "未命名" }
+private fun normalizedMarkdownName(name: String, fallbackName: String): String {
+    val trimmed = name.trim().ifEmpty { fallbackName }
     return if (trimmed.endsWith(".md", ignoreCase = true)) trimmed else "$trimmed.md"
 }
 

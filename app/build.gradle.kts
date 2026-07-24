@@ -23,12 +23,17 @@ android {
         applicationId = "de.unbow.mora"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.0-rc.1"
+        versionCode = 4
+        versionName = "0.3.0"
     }
 
     buildFeatures {
         compose = true
+    }
+
+    androidResources {
+        generateLocaleConfig = true
+        localeFilters += listOf("en-rUS", "zh-rCN")
     }
 
     signingConfigs {
@@ -36,10 +41,9 @@ android {
             storeFile = releaseStoreFile.orNull
                 ?.takeIf(String::isNotBlank)
                 ?.let(project::file)
-                ?: layout.buildDirectory.file("missing-mora-release-keystore.jks").get().asFile
-            storePassword = releaseStorePassword.orNull.orEmpty()
-            keyAlias = releaseKeyAlias.orNull.orEmpty()
-            keyPassword = releaseKeyPassword.orNull.orEmpty()
+            storePassword = releaseStorePassword.orNull?.takeIf(String::isNotBlank)
+            keyAlias = releaseKeyAlias.orNull?.takeIf(String::isNotBlank)
+            keyPassword = releaseKeyPassword.orNull?.takeIf(String::isNotBlank)
         }
     }
 

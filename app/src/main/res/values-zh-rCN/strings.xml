@@ -1,0 +1,103 @@
+<resources>
+    <string name="product_tagline">让 Markdown 好好被阅读</string>
+
+    <string name="app_settings">应用设置</string>
+    <string name="continue_reading">继续阅读</string>
+    <string name="remove_recent_document">从最近文档移除</string>
+    <string name="open_document">打开</string>
+    <string name="new_document">新建</string>
+    <string name="recent_documents">最近文档</string>
+    <string name="empty_recent_documents">打开一篇 Markdown 文档开始阅读</string>
+    <string name="recently_opened">最近打开</string>
+    <string name="just_opened">刚刚打开</string>
+    <plurals name="minutes_ago">
+        <item quantity="other">%1$d 分钟前打开</item>
+    </plurals>
+    <plurals name="hours_ago">
+        <item quantity="other">%1$d 小时前打开</item>
+    </plurals>
+    <plurals name="days_ago">
+        <item quantity="other">%1$d 天前打开</item>
+    </plurals>
+
+    <string name="reading_typography">阅读排版</string>
+    <string name="body_font_size">正文字号</string>
+    <string name="line_height">行高</string>
+    <string name="page_margins">页面边距</string>
+    <string name="restore_defaults">恢复默认</string>
+
+    <string name="settings_theme">主题</string>
+    <string name="theme_follow_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="dark_background">深色背景</string>
+    <string name="dark_background_dark_only">仅在深色模式中生效</string>
+    <string name="dark_background_default">默认</string>
+    <string name="dark_background_pure_black">纯黑</string>
+    <string name="settings_launcher_icon">启动器图标</string>
+    <string name="launcher_icon_indigo">靛蓝</string>
+    <string name="launcher_icon_pine">松绿</string>
+    <string name="launcher_icon_night">夜色</string>
+    <string name="launcher_icon_current">当前使用</string>
+    <string name="launcher_icon_themed_note">开启系统主题图标后，Android 可能将所有配色统一显示为单色。</string>
+    <string name="launcher_icon_change_failed">启动器图标切换未完成，已保留之前的设置。</string>
+    <string name="settings_language">语言</string>
+    <string name="current_ui_language_name">简体中文</string>
+    <string name="language_follows_device">跟随设备语言</string>
+    <string name="language_change_in_android">在 Android 设置中更改</string>
+    <string name="language_settings_unavailable">此设备无法打开应用语言设置。</string>
+
+    <string name="default_document_filename">文档.md</string>
+    <string name="untitled_filename_base">未命名</string>
+    <string name="untitled_document_filename">未命名.md</string>
+    <string name="shared_document_filename">共享内容.md</string>
+    <string name="new_draft_template"># 未命名文档\n\n从这里开始写作。</string>
+    <string name="open_document_failed">无法打开“%1$s”。</string>
+    <string name="document_saved">已保存</string>
+    <string name="document_save_failed">无法保存这个文档。</string>
+    <string name="document_requires_save_as">请选择位置保存这个文档。</string>
+    <string name="read_only_document_notice">原文件为只读，修改将另存为新文件。</string>
+    <string name="unsaved_changes">未保存</string>
+
+    <string name="navigate_back">返回</string>
+    <string name="read_document">阅读</string>
+    <string name="save_document">保存</string>
+    <string name="table_of_contents">目录</string>
+    <string name="search_document">搜索</string>
+    <string name="edit_document">编辑</string>
+    <string name="adjust_typography">排版</string>
+    <string name="search_in_document">在文档中搜索</string>
+    <string name="previous_search_result">上一个结果</string>
+    <string name="next_search_result">下一个结果</string>
+    <string name="close_search">关闭搜索</string>
+
+    <string name="toc_title">目录</string>
+    <plurals name="heading_count">
+        <item quantity="other">%1$d 个标题</item>
+    </plurals>
+    <string name="close_table_of_contents">关闭目录</string>
+    <string name="no_document_headings">这个文档没有一级至三级标题</string>
+    <string name="untitled_heading">未命名标题</string>
+
+    <string name="editor_empty_hint">开始写 Markdown…</string>
+    <string name="editor_action_link">链接</string>
+    <string name="editor_action_quote">引用</string>
+    <string name="editor_action_list">列表</string>
+    <string name="editor_action_task">任务</string>
+    <string name="editor_action_code">代码</string>
+    <string name="editor_placeholder_heading">标题</string>
+    <string name="editor_placeholder_bold">加粗文字</string>
+    <string name="editor_placeholder_italic">斜体文字</string>
+    <string name="editor_placeholder_link">链接文字</string>
+    <string name="editor_placeholder_quote">引用</string>
+    <string name="editor_placeholder_list_item">列表项</string>
+    <string name="editor_placeholder_task">待办事项</string>
+
+    <string name="discard_changes_title">放弃未保存的修改？</string>
+    <string name="discard_changes_body">返回后，当前文档中的修改不会保留。</string>
+    <string name="discard_changes">放弃修改</string>
+    <string name="open_new_document_title">打开新文档？</string>
+    <string name="open_new_document_body">当前文档还有未保存的修改。继续后，这些修改不会保留。</string>
+    <string name="discard_and_open">放弃并打开</string>
+    <string name="cancel">取消</string>
+</resources>

@@ -18,14 +18,14 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import de.unbow.mora.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AppearanceSheet(
-    title: String,
     fontSize: Float,
     lineHeight: Float,
     horizontalPadding: Float,
@@ -46,30 +46,30 @@ internal fun AppearanceSheet(
                 .navigationBarsPadding(),
         ) {
             Text(
-                text = title,
+                text = stringResource(R.string.reading_typography),
                 style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(24.dp))
             SettingSlider(
-                title = "正文字号",
-                valueLabel = "${fontSize.toInt()} px",
+                title = stringResource(R.string.body_font_size),
+                valueLabel = stringResource(R.string.pixels_value, fontSize.toInt()),
                 value = fontSize,
                 range = 15f..21f,
                 steps = 5,
                 onValueChange = onFontSizeChanged,
             )
             SettingSlider(
-                title = "行高",
-                valueLabel = String.format(LocalLocale.current.platformLocale, "%.2f", lineHeight),
+                title = stringResource(R.string.line_height),
+                valueLabel = stringResource(R.string.decimal_value, lineHeight),
                 value = lineHeight,
                 range = 1.5f..2.1f,
                 steps = 11,
                 onValueChange = onLineHeightChanged,
             )
             SettingSlider(
-                title = "页面边距",
-                valueLabel = "${horizontalPadding.toInt()} px",
+                title = stringResource(R.string.page_margins),
+                valueLabel = stringResource(R.string.pixels_value, horizontalPadding.toInt()),
                 value = horizontalPadding,
                 range = 16f..34f,
                 steps = 8,
@@ -77,7 +77,7 @@ internal fun AppearanceSheet(
             )
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
             TextButton(onClick = onReset, modifier = Modifier.align(Alignment.End)) {
-                Text("恢复默认")
+                Text(stringResource(R.string.restore_defaults))
             }
             Spacer(Modifier.height(12.dp))
         }
@@ -97,7 +97,13 @@ private fun SettingSlider(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(title, fontWeight = FontWeight.Medium)
+        Text(
+            text = title,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 12.dp),
+            fontWeight = FontWeight.Medium,
+        )
         Text(
             valueLabel,
             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,

@@ -4,10 +4,38 @@ All notable changes to Mora are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - Unreleased
+## [0.3.0] - Unreleased
 
-Stable release target. Changes made after the release candidate will be recorded
-here.
+First stable release target.
+
+### Added
+
+- Replaced the transient reading-position marker with a quiet, proportional
+  right-edge thumb that can be dragged to move quickly through a document.
+- Added a complete English and Simplified Chinese UI that follows the device
+  language, with a shortcut to Android 13+'s per-app language settings.
+- Separated Home-level application settings from Reader-only typography controls.
+- Added system, light, and dark appearance modes plus an optional pure-black dark
+  surface while retaining Material dynamic accents.
+- Added three selectable Fine Frame launcher palettes: Indigo, Pine, and Night.
+- Added predictive document-to-Home back navigation on supported Android versions,
+  while retaining standard Back behavior elsewhere.
+
+### Migration
+
+- Release-signed `v0.2.0-rc.1` installations can update in place; Debug-signed
+  previews must be uninstalled before installing the stable signed APK.
+- Existing recent documents, reading positions, and reader typography settings
+  remain in the same app storage. New app appearance and launcher-icon settings
+  start from their documented defaults.
+- Android 8–12 follow the device language. Android 13 and later can additionally
+  choose Mora's language from the system per-app language page.
+
+## [0.2.0] - Not released
+
+Stable v0.2.0 was superseded by v0.3.0 before publication. The signed
+`v0.2.0-rc.1` Pre-release remains below as historical candidate history; no stable
+v0.2.0 tag or Release was published.
 
 ## [0.2.0-rc.1] - 2026-07-25
 

@@ -10,6 +10,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import de.unbow.mora.data.AppSettings
+import de.unbow.mora.data.AppSettingsRepository
+import de.unbow.mora.platform.LauncherIconManager
 import de.unbow.mora.ui.MoraApp
 import de.unbow.mora.ui.theme.MoraTheme
 
@@ -17,7 +20,7 @@ data class IncomingDocumentRequest(
     val id: Long,
     val uri: Uri? = null,
     val sharedText: String? = null,
-    val suggestedName: String = "共享内容.md",
+    val suggestedName: String,
     val grantedFlags: Int,
 )
 
@@ -25,9 +28,14 @@ class MainActivity : ComponentActivity() {
 
     private var requestCounter = 0L
     private var incomingRequest by mutableStateOf<IncomingDocumentRequest?>(null)
+    private var appSettings by mutableStateOf(AppSettings())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val appSettingsRepository = AppSettingsRepository(this)
+        val launcherIconManager = LauncherIconManager(this)
+        appSettings = appSettingsRepository.load()
+        launcherIconManager.reconcile(appSettings.launcherIcon)
         // A configuration change recreates the Activity with the same launch Intent while the
         // ViewModel keeps the current document. Only parse the launch Intent for a fresh Activity;
         // genuinely new shares and opens are delivered through onNewIntent.
@@ -35,8 +43,23 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            MoraTheme {
+            MoraTheme(
+                themeMode = appSettings.themeMode,
+                darkSurfaceStyle = appSettings.darkSurfaceStyle,
+            ) {
                 MoraApp(
+                    appSettings = appSettings,
+                    onAppSettingsChanged = { updatedSettings ->
+                        val launcherIconChanged =
+                            updatedSettings.launcherIcon != appSettings.launcherIcon
+                        val launcherIconApplied = !launcherIconChanged ||
+                            launcherIconManager.changeLauncherIcon(updatedSettings.launcherIcon)
+                        if (launcherIconApplied) {
+                            appSettings = updatedSettings
+                            appSettingsRepository.save(updatedSettings)
+                        }
+                        launcherIconApplied
+                    },
                     incomingRequest = incomingRequest,
                     onIncomingRequestConsumed = { requestId ->
                         if (incomingRequest?.id == requestId) incomingRequest = null
@@ -81,7 +104,7 @@ class MainActivity : ComponentActivity() {
             sharedText = sharedText,
             suggestedName = sourceIntent.getStringExtra(Intent.EXTRA_TITLE)
                 ?.takeIf(String::isNotBlank)
-                ?: "共享内容.md",
+                ?: getString(R.string.shared_document_filename),
             grantedFlags = sourceIntent.flags,
         )
     }

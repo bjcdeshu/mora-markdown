@@ -21,9 +21,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import de.unbow.mora.R
 
 @Composable
 internal fun MarkdownEditor(
@@ -63,7 +64,7 @@ internal fun MarkdownEditor(
                 Box(Modifier.fillMaxHeight()) {
                     if (value.text.isEmpty()) {
                         Text(
-                            text = "开始写 Markdown…",
+                            text = stringResource(R.string.editor_empty_hint),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 16.sp,
@@ -80,7 +81,7 @@ private data class MarkdownAction(
     val label: String,
     val prefix: String,
     val suffix: String = "",
-    val placeholder: String = "文本",
+    val placeholder: String,
     val linePrefix: Boolean = false,
 )
 
@@ -89,7 +90,7 @@ internal fun EditorToolbar(
     value: TextFieldValue,
     onValueChange: (TextFieldValue) -> Unit,
 ) {
-    val actions = remember { markdownActions() }
+    val actions = markdownActions()
     Surface(
         tonalElevation = 3.dp,
         shadowElevation = 2.dp,
@@ -115,15 +116,56 @@ internal fun EditorToolbar(
     }
 }
 
+@Composable
 private fun markdownActions(): List<MarkdownAction> = listOf(
-    MarkdownAction("H1", "# ", placeholder = "标题", linePrefix = true),
-    MarkdownAction("B", "**", "**", "加粗文字"),
-    MarkdownAction("I", "*", "*", "斜体文字"),
-    MarkdownAction("链接", "[", "](https://)", "链接文字"),
-    MarkdownAction("引用", "> ", placeholder = "引用", linePrefix = true),
-    MarkdownAction("列表", "- ", placeholder = "列表项", linePrefix = true),
-    MarkdownAction("任务", "- [ ] ", placeholder = "待办事项", linePrefix = true),
-    MarkdownAction("代码", "`", "`", "code"),
+    MarkdownAction(
+        label = stringResource(R.string.editor_action_heading_1),
+        prefix = "# ",
+        placeholder = stringResource(R.string.editor_placeholder_heading),
+        linePrefix = true,
+    ),
+    MarkdownAction(
+        label = stringResource(R.string.editor_action_bold),
+        prefix = "**",
+        suffix = "**",
+        placeholder = stringResource(R.string.editor_placeholder_bold),
+    ),
+    MarkdownAction(
+        label = stringResource(R.string.editor_action_italic),
+        prefix = "*",
+        suffix = "*",
+        placeholder = stringResource(R.string.editor_placeholder_italic),
+    ),
+    MarkdownAction(
+        label = stringResource(R.string.editor_action_link),
+        prefix = "[",
+        suffix = "](https://)",
+        placeholder = stringResource(R.string.editor_placeholder_link),
+    ),
+    MarkdownAction(
+        label = stringResource(R.string.editor_action_quote),
+        prefix = "> ",
+        placeholder = stringResource(R.string.editor_placeholder_quote),
+        linePrefix = true,
+    ),
+    MarkdownAction(
+        label = stringResource(R.string.editor_action_list),
+        prefix = "- ",
+        placeholder = stringResource(R.string.editor_placeholder_list_item),
+        linePrefix = true,
+    ),
+    MarkdownAction(
+        label = stringResource(R.string.editor_action_task),
+        prefix = "- [ ] ",
+        placeholder = stringResource(R.string.editor_placeholder_task),
+        linePrefix = true,
+    ),
+    MarkdownAction(
+        label = stringResource(R.string.editor_action_code),
+        prefix = "`",
+        suffix = "`",
+        placeholder = stringResource(R.string.editor_placeholder_code),
+    ),
 )
 
 private fun applyMarkdownAction(

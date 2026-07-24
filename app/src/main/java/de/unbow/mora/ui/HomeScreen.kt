@@ -1,5 +1,6 @@
 package de.unbow.mora.ui
 
+import android.content.res.Resources
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -39,19 +41,25 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import de.unbow.mora.R
 import de.unbow.mora.data.RecentDocument
-import java.text.SimpleDateFormat
+import java.text.DateFormat
 import java.util.Date
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 @Composable
 internal fun HomeScreen(
+    modifier: Modifier = Modifier,
     recentDocuments: List<RecentDocument>,
     snackbarHostState: SnackbarHostState,
+    showSnackbarHost: Boolean = true,
+    interactive: Boolean = true,
     onOpenFile: () -> Unit,
     onNewDraft: () -> Unit,
     onOpenRecent: (RecentDocument) -> Unit,
@@ -59,7 +67,12 @@ internal fun HomeScreen(
     onSettings: () -> Unit,
 ) {
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier,
+        snackbarHost = {
+            if (showSnackbarHost) {
+                SnackbarHost(snackbarHostState)
+            }
+        },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { innerPadding ->
         LazyColumn(
@@ -91,18 +104,24 @@ internal fun HomeScreen(
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
-                            text = "Mora",
+                            text = stringResource(R.string.app_name),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            text = PRODUCT_TAGLINE,
+                            text = stringResource(R.string.product_tagline),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    IconButton(onClick = onSettings) {
-                        Icon(Icons.Outlined.Settings, contentDescription = "阅读设置")
+                    IconButton(
+                        onClick = { if (interactive) onSettings() },
+                        modifier = Modifier.focusProperties { canFocus = interactive },
+                    ) {
+                        Icon(
+                            Icons.Outlined.Settings,
+                            contentDescription = stringResource(R.string.app_settings),
+                        )
                     }
                 }
             }
@@ -110,11 +129,15 @@ internal fun HomeScreen(
             recentDocuments.firstOrNull()?.let { document ->
                 item {
                     Column {
-                        SectionTitle("继续阅读")
+                        SectionTitle(stringResource(R.string.continue_reading))
                         Spacer(Modifier.height(10.dp))
                         ElevatedCard(
-                            onClick = { onOpenRecent(document) },
-                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                if (interactive) onOpenRecent(document)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusProperties { canFocus = interactive },
                             shape = RoundedCornerShape(26.dp),
                             colors = CardDefaults.elevatedCardColors(
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -140,7 +163,9 @@ internal fun HomeScreen(
                                 Spacer(Modifier.width(14.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(
-                                        text = document.name,
+                                        text = document.name.ifBlank {
+                                            stringResource(R.string.default_document_filename)
+                                        },
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 2,
@@ -153,10 +178,19 @@ internal fun HomeScreen(
                                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     )
                                 }
-                                IconButton(onClick = { onRemoveRecent(document) }) {
+                                IconButton(
+                                    onClick = {
+                                        if (interactive) onRemoveRecent(document)
+                                    },
+                                    modifier = Modifier.focusProperties {
+                                        canFocus = interactive
+                                    },
+                                ) {
                                     Icon(
                                         Icons.Outlined.Close,
-                                        contentDescription = "从最近文档移除",
+                                        contentDescription = stringResource(
+                                            R.string.remove_recent_document,
+                                        ),
                                     )
                                 }
                             }
@@ -171,40 +205,43 @@ internal fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     FilledTonalButton(
-                        onClick = onOpenFile,
+                        onClick = { if (interactive) onOpenFile() },
                         modifier = Modifier
                             .weight(1f)
-                            .height(54.dp),
+                            .heightIn(min = 54.dp)
+                            .focusProperties { canFocus = interactive },
                         shape = RoundedCornerShape(18.dp),
                     ) {
                         Icon(Icons.Outlined.FolderOpen, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("打开")
+                        Text(stringResource(R.string.open_document))
                     }
                     FilledTonalButton(
-                        onClick = onNewDraft,
+                        onClick = { if (interactive) onNewDraft() },
                         modifier = Modifier
                             .weight(1f)
-                            .height(54.dp),
+                            .heightIn(min = 54.dp)
+                            .focusProperties { canFocus = interactive },
                         shape = RoundedCornerShape(18.dp),
                     ) {
                         Icon(Icons.Outlined.Add, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("新建")
+                        Text(stringResource(R.string.new_document))
                     }
                 }
             }
 
             if (recentDocuments.size > 1) {
-                item { SectionTitle("最近文档") }
+                item { SectionTitle(stringResource(R.string.recent_documents)) }
                 items(
                     items = recentDocuments.drop(1),
                     key = { it.uri.toString() },
                 ) { document ->
                     RecentDocumentRow(
                         document = document,
-                        onOpen = { onOpenRecent(document) },
-                        onRemove = { onRemoveRecent(document) },
+                        interactive = interactive,
+                        onOpen = { if (interactive) onOpenRecent(document) },
+                        onRemove = { if (interactive) onRemoveRecent(document) },
                     )
                 }
             } else if (recentDocuments.isEmpty()) {
@@ -225,7 +262,7 @@ internal fun HomeScreen(
                             )
                             Spacer(Modifier.height(10.dp))
                             Text(
-                                text = "打开一篇 Markdown 文档开始阅读",
+                                text = stringResource(R.string.empty_recent_documents),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -249,12 +286,15 @@ private fun SectionTitle(text: String) {
 @Composable
 private fun RecentDocumentRow(
     document: RecentDocument,
+    interactive: Boolean,
     onOpen: () -> Unit,
     onRemove: () -> Unit,
 ) {
     ElevatedCard(
         onClick = onOpen,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusProperties { canFocus = interactive },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -273,7 +313,9 @@ private fun RecentDocumentRow(
             Spacer(Modifier.width(13.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = document.name,
+                    text = document.name.ifBlank {
+                        stringResource(R.string.default_document_filename)
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     fontWeight = FontWeight.Medium,
@@ -284,27 +326,55 @@ private fun RecentDocumentRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = onRemove) {
-                Icon(Icons.Outlined.Close, contentDescription = "从最近文档移除")
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.focusProperties { canFocus = interactive },
+            ) {
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = stringResource(R.string.remove_recent_document),
+                )
             }
         }
     }
 }
 
-private fun recentTimeLabel(timestamp: Long): String {
-    if (timestamp <= 0L) return "最近打开"
-    val elapsed = (System.currentTimeMillis() - timestamp).coerceAtLeast(0)
+@Composable
+private fun recentTimeLabel(timestamp: Long): String =
+    recentTimeLabel(
+        resources = LocalResources.current,
+        timestamp = timestamp,
+    )
+
+internal fun recentTimeLabel(
+    resources: Resources,
+    timestamp: Long,
+    now: Long = System.currentTimeMillis(),
+): String {
+    if (timestamp <= 0L) return resources.getString(R.string.recently_opened)
+    val elapsed = (now - timestamp).coerceAtLeast(0)
     return when {
-        elapsed < TimeUnit.MINUTES.toMillis(2) -> "刚刚打开"
-        elapsed < TimeUnit.HOURS.toMillis(1) ->
-            "${TimeUnit.MILLISECONDS.toMinutes(elapsed)} 分钟前"
+        elapsed < TimeUnit.MINUTES.toMillis(2) ->
+            resources.getString(R.string.just_opened)
 
-        elapsed < TimeUnit.DAYS.toMillis(1) ->
-            "${TimeUnit.MILLISECONDS.toHours(elapsed)} 小时前"
+        elapsed < TimeUnit.HOURS.toMillis(1) -> {
+            val minutes = TimeUnit.MILLISECONDS.toMinutes(elapsed).toInt()
+            resources.getQuantityString(R.plurals.minutes_ago, minutes, minutes)
+        }
 
-        elapsed < TimeUnit.DAYS.toMillis(7) ->
-            "${TimeUnit.MILLISECONDS.toDays(elapsed)} 天前"
+        elapsed < TimeUnit.DAYS.toMillis(1) -> {
+            val hours = TimeUnit.MILLISECONDS.toHours(elapsed).toInt()
+            resources.getQuantityString(R.plurals.hours_ago, hours, hours)
+        }
 
-        else -> SimpleDateFormat("M 月 d 日", Locale.getDefault()).format(Date(timestamp))
+        elapsed < TimeUnit.DAYS.toMillis(7) -> {
+            val days = TimeUnit.MILLISECONDS.toDays(elapsed).toInt()
+            resources.getQuantityString(R.plurals.days_ago, days, days)
+        }
+
+        else -> DateFormat.getDateInstance(
+            DateFormat.MEDIUM,
+            resources.configuration.locales[0],
+        ).format(Date(timestamp))
     }
 }

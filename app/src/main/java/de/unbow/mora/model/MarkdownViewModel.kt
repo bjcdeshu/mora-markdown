@@ -7,22 +7,75 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import de.unbow.mora.IncomingDocumentRequest
+import de.unbow.mora.data.DocumentAccessException
+import de.unbow.mora.data.DocumentFailure
 import de.unbow.mora.data.DocumentRepository
 import de.unbow.mora.data.RecentDocument
 import de.unbow.mora.data.RecentDocumentsRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+
+sealed interface DocumentUiError {
+    data class OpenFailed(
+        val documentName: String,
+        val usesLocalizedFallback: Boolean = false,
+    ) : DocumentUiError
+}
+
+sealed interface DocumentSaveResult {
+    data object Saved : DocumentSaveResult
+    data class Failed(val failure: DocumentFailure) : DocumentSaveResult
+}
+
+internal data class ResolvedDocumentName(
+    val storedName: String,
+    val usesLocalizedFallback: Boolean,
+    val persistedName: String,
+)
+
+internal fun resolveDocumentName(
+    sourceName: String?,
+    fallbackName: String,
+    fallbackIsLocalized: Boolean,
+): ResolvedDocumentName {
+    val originalName = sourceName?.takeIf(String::isNotBlank)
+    val fallback = fallbackName.takeIf(String::isNotBlank).orEmpty()
+    val usesLocalizedFallback = originalName == null && fallbackIsLocalized
+    val stableName = when {
+        originalName != null -> originalName
+        usesLocalizedFallback -> ""
+        else -> fallback
+    }
+    return ResolvedDocumentName(
+        storedName = stableName,
+        usesLocalizedFallback = usesLocalizedFallback,
+        persistedName = stableName,
+    )
+}
+
+internal fun displayDocumentName(
+    storedName: String,
+    usesLocalizedFallback: Boolean,
+    localizedFallback: String,
+): String = if (usesLocalizedFallback || storedName.isBlank()) {
+    localizedFallback
+} else {
+    storedName
+}
 
 data class DocumentUiState(
     val sessionId: Long = 0L,
     val hasDocument: Boolean = false,
     val uri: Uri? = null,
     val name: String = "",
+    val nameUsesLocalizedFallback: Boolean = false,
     val content: String = "",
     val canWrite: Boolean = false,
     val initialScrollY: Int = 0,
     val isDirty: Boolean = false,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null,
+    val error: DocumentUiError? = null,
     val contentVersion: Long = 0L,
 )
 
@@ -32,6 +85,9 @@ class MarkdownViewModel : ViewModel() {
         private set
 
     var recentDocuments by mutableStateOf<List<RecentDocument>>(emptyList())
+        private set
+
+    var pendingIncomingRequest by mutableStateOf<IncomingDocumentRequest?>(null)
         private set
 
     private var persistedContent: String = ""
@@ -45,79 +101,109 @@ class MarkdownViewModel : ViewModel() {
         recentDocuments = RecentDocumentsRepository.load(context)
     }
 
+    fun deferIncomingRequest(request: IncomingDocumentRequest) {
+        pendingIncomingRequest = request
+    }
+
+    fun clearPendingIncomingRequest(requestId: Long) {
+        if (pendingIncomingRequest?.id == requestId) {
+            pendingIncomingRequest = null
+        }
+    }
+
+    fun clearPendingIncomingRequest() {
+        pendingIncomingRequest = null
+    }
+
     fun openDocument(
         context: Context,
         uri: Uri,
+        fallbackName: String,
     ) {
         val requestSessionId = nextSessionId()
         val requestVersion = nextVersion()
         val knownPosition = recentDocuments.firstOrNull { it.uri == uri }?.scrollY
             ?: RecentDocumentsRepository.load(context).firstOrNull { it.uri == uri }?.scrollY
             ?: 0
-        val displayName = uri.lastPathSegment
+        val uriName = uri.lastPathSegment
             ?.substringAfterLast('/')
             ?.takeIf(String::isNotBlank)
-            ?: "正在打开…"
-
+        val initialName = resolveDocumentName(
+            sourceName = uriName,
+            fallbackName = fallbackName,
+            fallbackIsLocalized = true,
+        )
         persistedContent = ""
         uiState = DocumentUiState(
             sessionId = requestSessionId,
             hasDocument = true,
             uri = uri,
-            name = displayName,
+            name = initialName.storedName,
+            nameUsesLocalizedFallback = initialName.usesLocalizedFallback,
             isLoading = true,
             contentVersion = requestVersion,
             initialScrollY = knownPosition,
         )
 
         viewModelScope.launch {
-            runCatching { DocumentRepository.read(context, uri) }
-                .onSuccess { loaded ->
-                    if (uiState.sessionId != requestSessionId) return@onSuccess
-                    persistedContent = loaded.content
-                    recentDocuments = RecentDocumentsRepository.recordOpened(
-                        context = context,
-                        uri = uri,
-                        name = loaded.name,
-                    )
-                    uiState = uiState.copy(
-                        name = loaded.name,
-                        content = loaded.content,
-                        canWrite = loaded.canWrite,
-                        isDirty = false,
-                        isLoading = false,
-                        initialScrollY = knownPosition,
-                        contentVersion = nextVersion(),
-                    )
-                }
-                .onFailure { error ->
-                    if (uiState.sessionId != requestSessionId) return@onFailure
-                    recentDocuments = RecentDocumentsRepository.remove(context, uri)
-                    persistedContent = ""
-                    uiState = DocumentUiState(
-                        sessionId = requestSessionId,
-                        errorMessage = "无法打开「$displayName」：${error.message ?: "读取失败"}",
-                        contentVersion = nextVersion(),
-                    )
-                }
+            val loaded = try {
+                DocumentRepository.read(context, uri)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                if (uiState.sessionId != requestSessionId) return@launch
+                recentDocuments = RecentDocumentsRepository.remove(context, uri)
+                persistedContent = ""
+                uiState = DocumentUiState(
+                    sessionId = requestSessionId,
+                    error = DocumentUiError.OpenFailed(
+                        documentName = initialName.storedName,
+                        usesLocalizedFallback = initialName.usesLocalizedFallback,
+                    ),
+                    contentVersion = nextVersion(),
+                )
+                return@launch
+            }
+
+            if (uiState.sessionId != requestSessionId) return@launch
+            persistedContent = loaded.content
+            val resolvedName = resolveDocumentName(
+                sourceName = loaded.name,
+                fallbackName = fallbackName,
+                fallbackIsLocalized = true,
+            )
+            recentDocuments = RecentDocumentsRepository.recordOpened(
+                context = context,
+                uri = uri,
+                name = resolvedName.persistedName,
+            )
+            uiState = uiState.copy(
+                name = resolvedName.storedName,
+                nameUsesLocalizedFallback = resolvedName.usesLocalizedFallback,
+                content = loaded.content,
+                canWrite = loaded.canWrite,
+                isDirty = false,
+                isLoading = false,
+                initialScrollY = knownPosition,
+                contentVersion = nextVersion(),
+            )
         }
     }
 
-    fun newDraft() {
-        val initial = "# 未命名文档\n\n从这里开始写作。"
+    fun newDraft(name: String, initialContent: String) {
         persistedContent = ""
         uiState = DocumentUiState(
             sessionId = nextSessionId(),
             hasDocument = true,
-            name = "未命名.md",
-            content = initial,
+            name = name,
+            content = initialContent,
             canWrite = false,
             isDirty = true,
             contentVersion = nextVersion(),
         )
     }
 
-    fun openSharedText(content: String, name: String = "共享内容.md") {
+    fun openSharedText(content: String, name: String) {
         persistedContent = ""
         uiState = DocumentUiState(
             sessionId = nextSessionId(),
@@ -138,11 +224,11 @@ class MarkdownViewModel : ViewModel() {
         )
     }
 
-    fun save(context: Context, onResult: (Result<Unit>) -> Unit) {
+    fun save(context: Context, onResult: (DocumentSaveResult) -> Unit) {
         val stateToSave = uiState
         val uri = stateToSave.uri
         if (uri == null || !stateToSave.canWrite) {
-            onResult(Result.failure(IllegalStateException("这个文件需要另存为")))
+            onResult(DocumentSaveResult.Failed(DocumentFailure.SAVE_AS_REQUIRED))
             return
         }
         saveTo(
@@ -152,11 +238,12 @@ class MarkdownViewModel : ViewModel() {
             contentToSave = stateToSave.content,
             updateDocumentIdentity = false,
             fallbackName = stateToSave.name,
+            fallbackIsLocalized = stateToSave.nameUsesLocalizedFallback,
             onResult = onResult,
         )
     }
 
-    fun saveAs(context: Context, uri: Uri, onResult: (Result<Unit>) -> Unit) {
+    fun saveAs(context: Context, uri: Uri, onResult: (DocumentSaveResult) -> Unit) {
         val stateToSave = uiState
         saveTo(
             context = context,
@@ -165,6 +252,7 @@ class MarkdownViewModel : ViewModel() {
             contentToSave = stateToSave.content,
             updateDocumentIdentity = true,
             fallbackName = stateToSave.name,
+            fallbackIsLocalized = stateToSave.nameUsesLocalizedFallback,
             onResult = onResult,
         )
     }
@@ -184,40 +272,57 @@ class MarkdownViewModel : ViewModel() {
         contentToSave: String,
         updateDocumentIdentity: Boolean,
         fallbackName: String,
-        onResult: (Result<Unit>) -> Unit,
+        fallbackIsLocalized: Boolean,
+        onResult: (DocumentSaveResult) -> Unit,
     ) {
         viewModelScope.launch {
-            val result = runCatching {
+            val failure = try {
                 DocumentRepository.write(context, uri, contentToSave)
+                null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: DocumentAccessException) {
+                error.failure
+            } catch (_: Exception) {
+                DocumentFailure.WRITE_FAILED
             }
 
             if (uiState.sessionId != sessionId) return@launch
 
-            result.onSuccess {
-                persistedContent = contentToSave
-                val name = if (updateDocumentIdentity) {
-                    DocumentRepository.displayName(context, uri) ?: fallbackName
-                } else {
-                    uiState.name
-                }
-                if (updateDocumentIdentity) {
-                    recentDocuments = RecentDocumentsRepository.recordOpened(
-                        context = context,
-                        uri = uri,
-                        name = name,
-                    )
-                }
-                uiState = uiState.copy(
-                    uri = uri,
-                    name = name,
-                    canWrite = true,
-                    initialScrollY = if (updateDocumentIdentity) 0 else uiState.initialScrollY,
-                    isDirty = uiState.content != contentToSave,
-                    errorMessage = null,
-                )
+            if (failure != null) {
+                onResult(DocumentSaveResult.Failed(failure))
+                return@launch
             }
 
-            onResult(result)
+            persistedContent = contentToSave
+            val resolvedName = if (updateDocumentIdentity) {
+                resolveDocumentName(
+                    sourceName = DocumentRepository.displayName(context, uri),
+                    fallbackName = fallbackName,
+                    fallbackIsLocalized = fallbackIsLocalized,
+                )
+            } else {
+                null
+            }
+            if (updateDocumentIdentity) {
+                recentDocuments = RecentDocumentsRepository.recordOpened(
+                    context = context,
+                    uri = uri,
+                    name = resolvedName?.persistedName.orEmpty(),
+                )
+            }
+            uiState = uiState.copy(
+                uri = uri,
+                name = resolvedName?.storedName ?: uiState.name,
+                nameUsesLocalizedFallback = resolvedName?.usesLocalizedFallback
+                    ?: uiState.nameUsesLocalizedFallback,
+                canWrite = true,
+                initialScrollY = if (updateDocumentIdentity) 0 else uiState.initialScrollY,
+                isDirty = uiState.content != contentToSave,
+                error = null,
+            )
+
+            onResult(DocumentSaveResult.Saved)
         }
     }
 
@@ -230,7 +335,7 @@ class MarkdownViewModel : ViewModel() {
     }
 
     fun consumeError() {
-        uiState = uiState.copy(errorMessage = null)
+        uiState = uiState.copy(error = null)
     }
 
     private fun nextVersion(): Long {

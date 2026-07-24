@@ -6,30 +6,36 @@ Mora's direction is simple:
 
 This roadmap describes intent, not a delivery promise. Priorities may change after real-device feedback.
 
-## v0.2.0 — first public release
+## v0.3.0 — first stable release
 
-The current codebase targets:
+The current codebase includes:
 
 - Immersive reading with a scroll-aware toolbar
+- A subtle right-edge progress thumb with direct dragging for long documents
 - Refined default typography and persistent reader settings
 - H1–H3 table of contents and in-document search
 - Recent documents and reading-position restoration
 - Robust external opening through Android intents
 - Clear read-only and Save As behavior
 - Basic Markdown source editing and a mobile formatting toolbar
+- English and Simplified Chinese UI, including Android 13+ per-app language access
+- App-level system/light/dark appearance, optional pure-black dark surfaces, and
+  three selectable launcher palettes
+- Predictive document-to-Home back navigation on supported Android versions
 - Reproducible tests, lint, APK builds, and public project documentation
 
-The `v0.2.0-rc.1` build is the first public signed candidate. It may be published
-as a clearly labeled Pre-release after automated build and signing checks so that
-real-device feedback can be collected from one exact downloadable APK.
+The signed `v0.2.0-rc.1` build remains a historical public Pre-release. Stable
+`v0.2.0` was not published and is superseded by this target.
 
-The stable `v0.2.0` release should be cut only after CI passes, the long-term
-signing key has recoverable independent backups, and the exact signed asset has
-passed the documented real-device matrix.
+Mora will not publish a separate public RC for v0.3.0. After pull-request and
+`main` CI pass, a protected manual build from `main` supplies the first exact APK
+for the complete device gate. Only after approval is the stable tag created; its
+hidden Draft asset must independently repeat the same gate before that same
+Release is made public as stable.
 
 ## Next
 
-Priorities after v0.2.0:
+Priorities after v0.3.0:
 
 - Improve draft recovery and protection against accidental data loss
 - Detect external file changes and resolve save conflicts safely

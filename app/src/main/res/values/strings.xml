@@ -1,3 +1,115 @@
 <resources>
-    <string name="app_name">Mora</string>
+    <string name="app_name" translatable="false">Mora</string>
+    <string name="product_tagline">Markdown, made for reading</string>
+
+    <string name="app_settings">App settings</string>
+    <string name="continue_reading">Continue reading</string>
+    <string name="remove_recent_document">Remove from recent documents</string>
+    <string name="open_document">Open</string>
+    <string name="new_document">New</string>
+    <string name="recent_documents">Recent documents</string>
+    <string name="empty_recent_documents">Open a Markdown document to start reading</string>
+    <string name="recently_opened">Opened recently</string>
+    <string name="just_opened">Opened just now</string>
+    <plurals name="minutes_ago">
+        <item quantity="one">Opened %1$d minute ago</item>
+        <item quantity="other">Opened %1$d minutes ago</item>
+    </plurals>
+    <plurals name="hours_ago">
+        <item quantity="one">Opened %1$d hour ago</item>
+        <item quantity="other">Opened %1$d hours ago</item>
+    </plurals>
+    <plurals name="days_ago">
+        <item quantity="one">Opened %1$d day ago</item>
+        <item quantity="other">Opened %1$d days ago</item>
+    </plurals>
+
+    <string name="reading_typography">Reading typography</string>
+    <string name="body_font_size">Body text size</string>
+    <string name="line_height">Line height</string>
+    <string name="page_margins">Page margins</string>
+    <string name="restore_defaults">Restore defaults</string>
+    <string name="pixels_value" translatable="false">%1$d px</string>
+    <string name="decimal_value" translatable="false">%1$.2f</string>
+
+    <string name="settings_theme">Theme</string>
+    <string name="theme_follow_system">Follow system</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="dark_background">Dark background</string>
+    <string name="dark_background_dark_only">Applies only in dark mode</string>
+    <string name="dark_background_default">Default</string>
+    <string name="dark_background_pure_black">Pure black</string>
+    <string name="settings_launcher_icon">Launcher icon</string>
+    <string name="launcher_icon_indigo">Indigo</string>
+    <string name="launcher_icon_pine">Pine</string>
+    <string name="launcher_icon_night">Night</string>
+    <string name="launcher_icon_current">Current</string>
+    <string name="launcher_icon_themed_note">When themed icons are on, Android may show every option in the same monochrome style.</string>
+    <string name="launcher_icon_change_failed">The launcher icon change didn’t complete. Your previous setting was kept.</string>
+    <string name="settings_language">Language</string>
+    <string name="current_ui_language_name">English</string>
+    <string name="language_follows_device">Follows device language</string>
+    <string name="language_change_in_android">Change in Android settings</string>
+    <string name="language_settings_unavailable">App language settings aren’t available on this device.</string>
+
+    <string name="default_document_filename">Document.md</string>
+    <string name="untitled_filename_base">Untitled</string>
+    <string name="untitled_document_filename">Untitled.md</string>
+    <string name="shared_document_filename">Shared content.md</string>
+    <string name="new_draft_template"># Untitled document\n\nStart writing here.</string>
+    <string name="open_document_failed">Couldn’t open “%1$s”.</string>
+    <string name="document_saved">Saved</string>
+    <string name="document_save_failed">Couldn’t save this document.</string>
+    <string name="document_requires_save_as">Choose a location to save this document.</string>
+    <string name="read_only_document_notice">The original file is read-only. Your changes will be saved as a new file.</string>
+    <string name="unsaved_changes">Unsaved</string>
+
+    <string name="navigate_back">Back</string>
+    <string name="read_document">Read</string>
+    <string name="save_document">Save</string>
+    <string name="table_of_contents">Table of contents</string>
+    <string name="search_document">Search</string>
+    <string name="edit_document">Edit</string>
+    <string name="adjust_typography">Typography</string>
+    <string name="search_in_document">Search in document</string>
+    <string name="previous_search_result">Previous result</string>
+    <string name="next_search_result">Next result</string>
+    <string name="close_search">Close search</string>
+    <string name="search_result_count" translatable="false">%1$d/%2$d</string>
+
+    <string name="toc_title">Contents</string>
+    <plurals name="heading_count">
+        <item quantity="one">%1$d heading</item>
+        <item quantity="other">%1$d headings</item>
+    </plurals>
+    <string name="close_table_of_contents">Close table of contents</string>
+    <string name="no_document_headings">This document has no level 1–3 headings</string>
+    <string name="untitled_heading">Untitled heading</string>
+
+    <string name="editor_empty_hint">Start writing Markdown…</string>
+    <string name="editor_action_heading_1" translatable="false">H1</string>
+    <string name="editor_action_bold" translatable="false">B</string>
+    <string name="editor_action_italic" translatable="false">I</string>
+    <string name="editor_action_link">Link</string>
+    <string name="editor_action_quote">Quote</string>
+    <string name="editor_action_list">List</string>
+    <string name="editor_action_task">Task</string>
+    <string name="editor_action_code">Code</string>
+    <string name="editor_placeholder_heading">heading</string>
+    <string name="editor_placeholder_bold">bold text</string>
+    <string name="editor_placeholder_italic">italic text</string>
+    <string name="editor_placeholder_link">link text</string>
+    <string name="editor_placeholder_quote">quote</string>
+    <string name="editor_placeholder_list_item">list item</string>
+    <string name="editor_placeholder_task">to-do item</string>
+    <string name="editor_placeholder_code" translatable="false">code</string>
+
+    <string name="discard_changes_title">Discard unsaved changes?</string>
+    <string name="discard_changes_body">Your changes to this document will not be kept.</string>
+    <string name="discard_changes">Discard changes</string>
+    <string name="open_new_document_title">Open a new document?</string>
+    <string name="open_new_document_body">This document has unsaved changes. Continuing will discard them.</string>
+    <string name="discard_and_open">Discard and open</string>
+    <string name="cancel">Cancel</string>
 </resources>
