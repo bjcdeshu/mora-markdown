@@ -18,8 +18,9 @@ First stable release.
 - Added system, light, and dark appearance modes plus an optional pure-black dark
   surface while retaining Material dynamic accents.
 - Added three selectable Fine Frame launcher palettes: Indigo, Pine, and Night.
-- Added predictive document-to-Home back navigation on supported Android versions,
-  while retaining standard Back behavior elsewhere.
+- Added predictive document-to-Home back navigation on supported Android versions:
+  the gesture reveals the real Home screen beneath the current document, while
+  standard Back behavior is retained elsewhere.
 
 ### Migration
 
