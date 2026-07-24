@@ -40,6 +40,13 @@
     <string name="dark_background_dark_only">Applies only in dark mode</string>
     <string name="dark_background_default">Default</string>
     <string name="dark_background_pure_black">Pure black</string>
+    <string name="settings_launcher_icon">Launcher icon</string>
+    <string name="launcher_icon_indigo">Indigo</string>
+    <string name="launcher_icon_pine">Pine</string>
+    <string name="launcher_icon_night">Night</string>
+    <string name="launcher_icon_current">Current</string>
+    <string name="launcher_icon_themed_note">When themed icons are on, Android may show every option in the same monochrome style.</string>
+    <string name="launcher_icon_change_failed">The launcher icon change didn’t complete. Your previous setting was kept.</string>
     <string name="settings_language">Language</string>
     <string name="current_ui_language_name">English</string>
     <string name="language_follows_device">Follows device language</string>

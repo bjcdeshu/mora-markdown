@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,7 +18,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -33,6 +36,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +46,7 @@ import androidx.core.net.toUri
 import de.unbow.mora.R
 import de.unbow.mora.data.AppSettings
 import de.unbow.mora.data.DarkSurfaceStyle
+import de.unbow.mora.data.LauncherIcon
 import de.unbow.mora.data.ThemeMode
 import kotlinx.coroutines.launch
 
@@ -63,7 +69,8 @@ internal fun appLanguageSettingsState(
 @Composable
 internal fun AppSettingsSheet(
     appSettings: AppSettings,
-    onAppSettingsChanged: (AppSettings) -> Unit,
+    onAppSettingsChanged: (AppSettings) -> Boolean,
+    onLauncherIconChangeFailed: () -> Unit,
     onLanguageSettingsUnavailable: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -119,18 +126,20 @@ internal fun AppSettingsSheet(
 
             SettingsSectionTitle(stringResource(R.string.settings_theme))
             Spacer(Modifier.height(8.dp))
-            ThemeMode.entries.forEach { mode ->
-                SettingsChoiceRow(
-                    label = when (mode) {
-                        ThemeMode.SYSTEM -> stringResource(R.string.theme_follow_system)
-                        ThemeMode.LIGHT -> stringResource(R.string.theme_light)
-                        ThemeMode.DARK -> stringResource(R.string.theme_dark)
-                    },
-                    selected = appSettings.themeMode == mode,
-                    onClick = {
-                        onAppSettingsChanged(appSettings.copy(themeMode = mode))
-                    },
-                )
+            Column(Modifier.selectableGroup()) {
+                ThemeMode.entries.forEach { mode ->
+                    SettingsChoiceRow(
+                        label = when (mode) {
+                            ThemeMode.SYSTEM -> stringResource(R.string.theme_follow_system)
+                            ThemeMode.LIGHT -> stringResource(R.string.theme_light)
+                            ThemeMode.DARK -> stringResource(R.string.theme_dark)
+                        },
+                        selected = appSettings.themeMode == mode,
+                        onClick = {
+                            onAppSettingsChanged(appSettings.copy(themeMode = mode))
+                        },
+                    )
+                }
             }
 
             Spacer(Modifier.height(18.dp))
@@ -145,21 +154,58 @@ internal fun AppSettingsSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(6.dp))
-            DarkSurfaceStyle.entries.forEach { style ->
-                SettingsChoiceRow(
-                    label = when (style) {
-                        DarkSurfaceStyle.DEFAULT ->
-                            stringResource(R.string.dark_background_default)
+            Column(Modifier.selectableGroup()) {
+                DarkSurfaceStyle.entries.forEach { style ->
+                    SettingsChoiceRow(
+                        label = when (style) {
+                            DarkSurfaceStyle.DEFAULT ->
+                                stringResource(R.string.dark_background_default)
 
-                        DarkSurfaceStyle.PURE_BLACK ->
-                            stringResource(R.string.dark_background_pure_black)
-                    },
-                    selected = appSettings.darkSurfaceStyle == style,
-                    onClick = {
-                        onAppSettingsChanged(appSettings.copy(darkSurfaceStyle = style))
-                    },
-                )
+                            DarkSurfaceStyle.PURE_BLACK ->
+                                stringResource(R.string.dark_background_pure_black)
+                        },
+                        selected = appSettings.darkSurfaceStyle == style,
+                        onClick = {
+                            onAppSettingsChanged(appSettings.copy(darkSurfaceStyle = style))
+                        },
+                    )
+                }
             }
+
+            HorizontalDivider(Modifier.padding(vertical = 20.dp))
+
+            SettingsSectionTitle(stringResource(R.string.settings_launcher_icon))
+            Spacer(Modifier.height(8.dp))
+            Column(Modifier.selectableGroup()) {
+                LauncherIcon.entries.forEach { launcherIcon ->
+                    LauncherIconChoiceRow(
+                        launcherIcon = launcherIcon,
+                        label = when (launcherIcon) {
+                            LauncherIcon.INDIGO ->
+                                stringResource(R.string.launcher_icon_indigo)
+
+                            LauncherIcon.PINE ->
+                                stringResource(R.string.launcher_icon_pine)
+
+                            LauncherIcon.NIGHT ->
+                                stringResource(R.string.launcher_icon_night)
+                        },
+                        selected = appSettings.launcherIcon == launcherIcon,
+                        onClick = {
+                            val changed = onAppSettingsChanged(
+                                appSettings.copy(launcherIcon = launcherIcon),
+                            )
+                            if (!changed) onLauncherIconChangeFailed()
+                        },
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.launcher_icon_themed_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             HorizontalDivider(Modifier.padding(vertical = 20.dp))
 
@@ -171,6 +217,81 @@ internal fun AppSettingsSheet(
                 onClick = ::openLanguageSettings,
             )
             Spacer(Modifier.height(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun LauncherIconChoiceRow(
+    launcherIcon: LauncherIcon,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val previewBackground = colorResource(
+        when (launcherIcon) {
+            LauncherIcon.INDIGO -> R.color.mora_icon_background
+            LauncherIcon.PINE -> R.color.mora_icon_pine_background
+            LauncherIcon.NIGHT -> R.color.mora_icon_night_background
+        },
+    )
+    val foregroundDrawable = when (launcherIcon) {
+        LauncherIcon.INDIGO -> R.drawable.ic_launcher_foreground
+        LauncherIcon.PINE -> R.drawable.ic_launcher_foreground_pine
+        LauncherIcon.NIGHT -> R.drawable.ic_launcher_foreground_night
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = onClick,
+            ),
+        shape = MaterialTheme.shapes.medium,
+        color = if (selected) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = previewBackground,
+            ) {
+                Image(
+                    painter = painterResource(foregroundDrawable),
+                    contentDescription = null,
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                if (selected) {
+                    Text(
+                        text = stringResource(R.string.launcher_icon_current),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            RadioButton(
+                selected = selected,
+                onClick = null,
+            )
         }
     }
 }

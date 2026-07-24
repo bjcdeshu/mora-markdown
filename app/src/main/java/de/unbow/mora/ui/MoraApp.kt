@@ -46,7 +46,7 @@ import java.util.Locale
 @Composable
 fun MoraApp(
     appSettings: AppSettings,
-    onAppSettingsChanged: (AppSettings) -> Unit,
+    onAppSettingsChanged: (AppSettings) -> Boolean,
     incomingRequest: IncomingDocumentRequest?,
     onIncomingRequestConsumed: (Long) -> Unit,
     markdownViewModel: MarkdownViewModel = viewModel(),
@@ -67,6 +67,7 @@ fun MoraApp(
     val saveAsRequiredMessage = stringResource(R.string.document_requires_save_as)
     val readOnlyNotice = stringResource(R.string.read_only_document_notice)
     val languageSettingsUnavailable = stringResource(R.string.language_settings_unavailable)
+    val launcherIconChangeFailed = stringResource(R.string.launcher_icon_change_failed)
     val displayedDocumentName = displayDocumentName(
         storedName = state.name,
         usesLocalizedFallback = state.nameUsesLocalizedFallback,
@@ -343,6 +344,11 @@ fun MoraApp(
         AppSettingsSheet(
             appSettings = appSettings,
             onAppSettingsChanged = onAppSettingsChanged,
+            onLauncherIconChangeFailed = {
+                scope.launch {
+                    snackbarHostState.showSnackbar(launcherIconChangeFailed)
+                }
+            },
             onLanguageSettingsUnavailable = {
                 scope.launch {
                     snackbarHostState.showSnackbar(languageSettingsUnavailable)

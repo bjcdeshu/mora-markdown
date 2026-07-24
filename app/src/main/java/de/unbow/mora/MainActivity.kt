@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import de.unbow.mora.data.AppSettings
 import de.unbow.mora.data.AppSettingsRepository
+import de.unbow.mora.platform.LauncherIconManager
 import de.unbow.mora.ui.MoraApp
 import de.unbow.mora.ui.theme.MoraTheme
 
@@ -32,7 +33,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val appSettingsRepository = AppSettingsRepository(this)
+        val launcherIconManager = LauncherIconManager(this)
         appSettings = appSettingsRepository.load()
+        launcherIconManager.reconcile(appSettings.launcherIcon)
         // A configuration change recreates the Activity with the same launch Intent while the
         // ViewModel keeps the current document. Only parse the launch Intent for a fresh Activity;
         // genuinely new shares and opens are delivered through onNewIntent.
@@ -47,8 +50,15 @@ class MainActivity : ComponentActivity() {
                 MoraApp(
                     appSettings = appSettings,
                     onAppSettingsChanged = { updatedSettings ->
-                        appSettings = updatedSettings
-                        appSettingsRepository.save(updatedSettings)
+                        val launcherIconChanged =
+                            updatedSettings.launcherIcon != appSettings.launcherIcon
+                        val launcherIconApplied = !launcherIconChanged ||
+                            launcherIconManager.changeLauncherIcon(updatedSettings.launcherIcon)
+                        if (launcherIconApplied) {
+                            appSettings = updatedSettings
+                            appSettingsRepository.save(updatedSettings)
+                        }
+                        launcherIconApplied
                     },
                     incomingRequest = incomingRequest,
                     onIncomingRequestConsumed = { requestId ->

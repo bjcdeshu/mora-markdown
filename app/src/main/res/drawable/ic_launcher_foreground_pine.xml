@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <path
+        android:fillColor="@color/mora_icon_pine_foreground"
+        android:fillType="evenOdd"
+        android:pathData="M512 340 C465 287 420 264 358 264 C284 264 225 316 225 392 L225 625 C225 654 225 681 248 688 C355 688 432 707 486 766 C493 774 503 776 512 776 C521 776 531 774 538 766 C592 707 669 688 776 688 C799 681 799 654 799 625 L799 392 C799 316 740 264 666 264 C604 264 559 287 512 340 Z M486 689 C445 660 360 633 279 633 L279 391 C279 348 313 314 356 314 C408 314 454 343 486 387 L486 689 Z M538 689 C579 660 664 633 745 633 L745 391 C745 348 711 314 668 314 C616 314 570 343 538 387 L538 689 Z" />
+</vector>

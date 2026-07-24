@@ -34,6 +34,13 @@
     <string name="dark_background_dark_only">仅在深色模式中生效</string>
     <string name="dark_background_default">默认</string>
     <string name="dark_background_pure_black">纯黑</string>
+    <string name="settings_launcher_icon">启动器图标</string>
+    <string name="launcher_icon_indigo">靛蓝</string>
+    <string name="launcher_icon_pine">松绿</string>
+    <string name="launcher_icon_night">夜色</string>
+    <string name="launcher_icon_current">当前使用</string>
+    <string name="launcher_icon_themed_note">开启系统主题图标后，Android 可能将所有配色统一显示为单色。</string>
+    <string name="launcher_icon_change_failed">启动器图标切换未完成，已保留之前的设置。</string>
     <string name="settings_language">语言</string>
     <string name="current_ui_language_name">简体中文</string>
     <string name="language_follows_device">跟随设备语言</string>
