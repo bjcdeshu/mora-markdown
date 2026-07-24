@@ -91,6 +91,14 @@ private data class ReaderRenderRequest(
     val untitledHeading: String,
 )
 
+internal fun shouldHideImmersiveStatusBar(
+    immersiveReading: Boolean,
+    predictiveBackGestureActive: Boolean,
+    predictiveBackVisualActive: Boolean,
+): Boolean = immersiveReading &&
+    !predictiveBackGestureActive &&
+    !predictiveBackVisualActive
+
 @Composable
 internal fun DocumentScreen(
     documentKey: Long,
@@ -111,6 +119,7 @@ internal fun DocumentScreen(
     onModeChanged: (DocumentMode) -> Unit,
     onBack: () -> Unit,
     predictiveBackBlocked: Boolean,
+    predictiveBackVisualActive: Boolean,
     onPredictiveBackProgress: (Long, Float, DocumentBackSwipeEdge) -> Unit,
     onPredictiveBackCancelled: (Long) -> Unit,
     onPredictiveBackCompleted: (Long) -> Unit,
@@ -174,7 +183,11 @@ internal fun DocumentScreen(
         !showTableOfContents
 
     ImmersiveStatusBarEffect(
-        hidden = immersiveReading && !predictiveBackGestureActive,
+        hidden = shouldHideImmersiveStatusBar(
+            immersiveReading = immersiveReading,
+            predictiveBackGestureActive = predictiveBackGestureActive,
+            predictiveBackVisualActive = predictiveBackVisualActive,
+        ),
     )
 
     fun closeSearch() {

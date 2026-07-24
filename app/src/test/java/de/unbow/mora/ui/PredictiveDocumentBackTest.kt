@@ -6,10 +6,71 @@ import org.junit.Test
 class PredictiveDocumentBackTest {
 
     @Test
-    fun zeroProgressIsIdentity() {
+    fun maximumTranslationKeepsTheDocumentNearHalfOfTheCurrentWindow() {
         assertEquals(
-            PredictiveDocumentBackTransform.Identity,
-            calculatePredictiveDocumentBackTransform(
+            486f,
+            calculateMaximumPredictiveBackTranslation(
+                windowWidth = 1080f,
+            ),
+            0.0001f,
+        )
+        assertEquals(
+            54f,
+            calculateMaximumPredictiveBackTranslation(
+                windowWidth = 120f,
+            ),
+            0.0001f,
+        )
+        assertEquals(
+            0f,
+            calculateMaximumPredictiveBackTranslation(
+                windowWidth = Float.NaN,
+            ),
+            0.0001f,
+        )
+    }
+
+    @Test
+    fun immersiveStatusBarStaysVisibleUntilThePreviewFinishesResetting() {
+        assertEquals(
+            true,
+            shouldHideImmersiveStatusBar(
+                immersiveReading = true,
+                predictiveBackGestureActive = false,
+                predictiveBackVisualActive = false,
+            ),
+        )
+        assertEquals(
+            false,
+            shouldHideImmersiveStatusBar(
+                immersiveReading = true,
+                predictiveBackGestureActive = true,
+                predictiveBackVisualActive = true,
+            ),
+        )
+        assertEquals(
+            false,
+            shouldHideImmersiveStatusBar(
+                immersiveReading = true,
+                predictiveBackGestureActive = false,
+                predictiveBackVisualActive = true,
+            ),
+        )
+    }
+
+    @Test
+    fun zeroProgressStartsWithDocumentVisibleAndHomePreparedBehindIt() {
+        assertEquals(
+            PredictiveDocumentBackFrame(
+                document = PredictiveDocumentBackTransform.Identity,
+                home = PredictiveDocumentBackTransform(
+                    scale = 1.1f,
+                    translation = 0f,
+                    cornerRadius = 0f,
+                    alpha = 1f,
+                ),
+            ),
+            calculatePredictiveDocumentBackFrame(
                 progress = 0f,
                 swipeEdge = DocumentBackSwipeEdge.LEFT,
                 maximumTranslation = 24f,
@@ -19,14 +80,18 @@ class PredictiveDocumentBackTest {
     }
 
     @Test
-    fun completionReachesQuietDocumentTransform() {
+    fun completionReachesMoraSpatialPreviewTargets() {
         assertEquals(
-            PredictiveDocumentBackTransform(
-                scale = 0.96f,
-                translation = 24f,
-                cornerRadius = 28f,
+            PredictiveDocumentBackFrame(
+                document = PredictiveDocumentBackTransform(
+                    scale = 0.9f,
+                    translation = 24f,
+                    cornerRadius = 28f,
+                    alpha = 0f,
+                ),
+                home = PredictiveDocumentBackTransform.Identity,
             ),
-            calculatePredictiveDocumentBackTransform(
+            calculatePredictiveDocumentBackFrame(
                 progress = 1f,
                 swipeEdge = DocumentBackSwipeEdge.LEFT,
                 maximumTranslation = 24f,
@@ -36,31 +101,101 @@ class PredictiveDocumentBackTest {
     }
 
     @Test
-    fun swipeEdgeChangesTranslationDirection() {
-        val fromLeft = calculatePredictiveDocumentBackTransform(
+    fun swipeEdgeOnlyChangesDocumentTranslationDirection() {
+        val fromLeft = calculatePredictiveDocumentBackFrame(
             progress = 0.5f,
             swipeEdge = DocumentBackSwipeEdge.LEFT,
             maximumTranslation = 24f,
             maximumCornerRadius = 28f,
         )
-        val fromRight = calculatePredictiveDocumentBackTransform(
+        val fromRight = calculatePredictiveDocumentBackFrame(
             progress = 0.5f,
             swipeEdge = DocumentBackSwipeEdge.RIGHT,
             maximumTranslation = 24f,
             maximumCornerRadius = 28f,
         )
 
-        assertEquals(12f, fromLeft.translation, 0.0001f)
-        assertEquals(-12f, fromRight.translation, 0.0001f)
-        assertEquals(fromLeft.scale, fromRight.scale, 0.0001f)
-        assertEquals(fromLeft.cornerRadius, fromRight.cornerRadius, 0.0001f)
+        assertEquals(
+            -fromLeft.document.translation,
+            fromRight.document.translation,
+            0.0001f,
+        )
+        assertEquals(fromLeft.document.scale, fromRight.document.scale, 0.0001f)
+        assertEquals(
+            fromLeft.document.cornerRadius,
+            fromRight.document.cornerRadius,
+            0.0001f,
+        )
+        assertEquals(fromLeft.home, fromRight.home)
+    }
+
+    @Test
+    fun documentStaysOpaqueUntilTheFinalTwentyPercent() {
+        val beforeFade = calculatePredictiveDocumentBackFrame(
+            progress = 0.79f,
+            swipeEdge = DocumentBackSwipeEdge.LEFT,
+            maximumTranslation = 24f,
+            maximumCornerRadius = 28f,
+        )
+        val duringFade = calculatePredictiveDocumentBackFrame(
+            progress = 0.9f,
+            swipeEdge = DocumentBackSwipeEdge.LEFT,
+            maximumTranslation = 24f,
+            maximumCornerRadius = 28f,
+        )
+        val completed = calculatePredictiveDocumentBackFrame(
+            progress = 1f,
+            swipeEdge = DocumentBackSwipeEdge.LEFT,
+            maximumTranslation = 24f,
+            maximumCornerRadius = 28f,
+        )
+
+        assertEquals(1f, beforeFade.document.alpha, 0.0001f)
+        assertEquals(true, duringFade.document.alpha in 0f..<0.5f)
+        assertEquals(0f, completed.document.alpha, 0.0001f)
+        assertEquals(1f, beforeFade.home.alpha, 0.0001f)
+        assertEquals(1f, duringFade.home.alpha, 0.0001f)
+        assertEquals(1f, completed.home.alpha, 0.0001f)
+    }
+
+    @Test
+    fun systemInterpolatorMakesScaleRespondEarlyWithoutOvershooting() {
+        val early = calculatePredictiveDocumentBackFrame(
+            progress = 0.2f,
+            swipeEdge = DocumentBackSwipeEdge.LEFT,
+            maximumTranslation = 24f,
+            maximumCornerRadius = 28f,
+        )
+
+        assertEquals(true, early.document.scale < 0.98f)
+        assertEquals(true, early.document.scale in 0.9f..1f)
+        assertEquals(true, early.home.scale in 1f..1.1f)
     }
 
     @Test
     fun invalidProgressAndDimensionsAreClamped() {
+        val start = PredictiveDocumentBackFrame(
+            document = PredictiveDocumentBackTransform.Identity,
+            home = PredictiveDocumentBackTransform(
+                scale = 1.1f,
+                translation = 0f,
+                cornerRadius = 0f,
+                alpha = 1f,
+            ),
+        )
+        val endWithoutMovement = PredictiveDocumentBackFrame(
+            document = PredictiveDocumentBackTransform(
+                scale = 0.9f,
+                translation = 0f,
+                cornerRadius = 0f,
+                alpha = 0f,
+            ),
+            home = PredictiveDocumentBackTransform.Identity,
+        )
+
         assertEquals(
-            PredictiveDocumentBackTransform.Identity,
-            calculatePredictiveDocumentBackTransform(
+            start,
+            calculatePredictiveDocumentBackFrame(
                 progress = Float.NaN,
                 swipeEdge = DocumentBackSwipeEdge.LEFT,
                 maximumTranslation = 24f,
@@ -68,12 +203,16 @@ class PredictiveDocumentBackTest {
             ),
         )
         assertEquals(
-            PredictiveDocumentBackTransform(
-                scale = 0.96f,
-                translation = -24f,
-                cornerRadius = 28f,
+            PredictiveDocumentBackFrame(
+                document = PredictiveDocumentBackTransform(
+                    scale = 0.9f,
+                    translation = -24f,
+                    cornerRadius = 28f,
+                    alpha = 0f,
+                ),
+                home = PredictiveDocumentBackTransform.Identity,
             ),
-            calculatePredictiveDocumentBackTransform(
+            calculatePredictiveDocumentBackFrame(
                 progress = 2f,
                 swipeEdge = DocumentBackSwipeEdge.RIGHT,
                 maximumTranslation = 24f,
@@ -81,12 +220,8 @@ class PredictiveDocumentBackTest {
             ),
         )
         assertEquals(
-            PredictiveDocumentBackTransform(
-                scale = 0.96f,
-                translation = 0f,
-                cornerRadius = 0f,
-            ),
-            calculatePredictiveDocumentBackTransform(
+            endWithoutMovement,
+            calculatePredictiveDocumentBackFrame(
                 progress = 1f,
                 swipeEdge = DocumentBackSwipeEdge.LEFT,
                 maximumTranslation = -24f,
