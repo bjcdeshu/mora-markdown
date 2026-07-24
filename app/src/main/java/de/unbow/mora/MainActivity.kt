@@ -10,6 +10,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import de.unbow.mora.data.AppSettings
+import de.unbow.mora.data.AppSettingsRepository
 import de.unbow.mora.ui.MoraApp
 import de.unbow.mora.ui.theme.MoraTheme
 
@@ -25,9 +27,12 @@ class MainActivity : ComponentActivity() {
 
     private var requestCounter = 0L
     private var incomingRequest by mutableStateOf<IncomingDocumentRequest?>(null)
+    private var appSettings by mutableStateOf(AppSettings())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val appSettingsRepository = AppSettingsRepository(this)
+        appSettings = appSettingsRepository.load()
         // A configuration change recreates the Activity with the same launch Intent while the
         // ViewModel keeps the current document. Only parse the launch Intent for a fresh Activity;
         // genuinely new shares and opens are delivered through onNewIntent.
@@ -35,8 +40,16 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            MoraTheme {
+            MoraTheme(
+                themeMode = appSettings.themeMode,
+                darkSurfaceStyle = appSettings.darkSurfaceStyle,
+            ) {
                 MoraApp(
+                    appSettings = appSettings,
+                    onAppSettingsChanged = { updatedSettings ->
+                        appSettings = updatedSettings
+                        appSettingsRepository.save(updatedSettings)
+                    },
                     incomingRequest = incomingRequest,
                     onIncomingRequestConsumed = { requestId ->
                         if (incomingRequest?.id == requestId) incomingRequest = null

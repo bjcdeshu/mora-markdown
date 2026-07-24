@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.unbow.mora.IncomingDocumentRequest
+import de.unbow.mora.data.AppSettings
 import de.unbow.mora.data.DocumentRepository
 import de.unbow.mora.data.ReaderSettingsRepository
 import de.unbow.mora.markdown.ReaderPalette
@@ -37,6 +38,8 @@ import java.util.Locale
 
 @Composable
 fun MoraApp(
+    appSettings: AppSettings,
+    onAppSettingsChanged: (AppSettings) -> Unit,
     incomingRequest: IncomingDocumentRequest?,
     onIncomingRequestConsumed: (Long) -> Unit,
     markdownViewModel: MarkdownViewModel = viewModel(),
