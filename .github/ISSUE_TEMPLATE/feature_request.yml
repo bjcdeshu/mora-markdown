@@ -1,0 +1,65 @@
+name: Feature request
+description: Propose a focused improvement to Mora's reading or editing workflow
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Mora is a document-first Markdown reader and editor, not a vault or cloud workspace. Explain the user problem before proposing an interface.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is difficult today, and in what real workflow?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the smallest useful behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include existing Android behavior or workarounds when relevant.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      options:
+        - Reading and typography
+        - Table of contents and search
+        - Editing
+        - Opening, saving, and file providers
+        - Accessibility and device layouts
+        - Build, tests, or documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Fit with Mora
+      description: How does this improve opening, reading, or lightly editing a standard Markdown file without requiring an account or private format?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and the roadmap.
+          required: true
+        - label: This request does not depend on exposing private document data.
+          required: true

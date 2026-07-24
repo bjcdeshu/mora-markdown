@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f9f7ff" />
+  <title>Mora Markdown Demo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --primary: #5d5b92;
+      --on-primary: #ffffff;
+      --primary-container: #e4e0ff;
+      --on-primary-container: #19174a;
+      --secondary-container: #e3e0f9;
+      --on-secondary-container: #1f1d31;
+      --surface: #fcf8ff;
+      --surface-container-low: #f6f2fa;
+      --surface-container: #f0edf6;
+      --surface-container-high: #eae7f0;
+      --on-surface: #1c1b20;
+      --on-surface-variant: #48464f;
+      --outline: #797680;
+      --outline-variant: #cac5d0;
+      --error: #ba1a1a;
+      --shadow: 0 14px 50px rgba(43, 41, 58, .12);
+      --reader-size: 17px;
+      --reader-line: 1.82;
+      --reader-padding: 22px;
+      --radius-xl: 30px;
+      --radius-l: 24px;
+      --radius-m: 16px;
+    }
+
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --primary: #c6c2ff;
+      --on-primary: #2e2c60;
+      --primary-container: #454477;
+      --on-primary-container: #e4e0ff;
+      --secondary-container: #454559;
+      --on-secondary-container: #e6e1f9;
+      --surface: #131318;
+      --surface-container-low: #1b1a20;
+      --surface-container: #201f25;
+      --surface-container-high: #2b292f;
+      --on-surface: #e5e1e8;
+      --on-surface-variant: #cac5d0;
+      --outline: #938f99;
+      --outline-variant: #49464f;
+      --error: #ffb4ab;
+      --shadow: 0 14px 60px rgba(0, 0, 0, .38);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      background: color-mix(in srgb, var(--surface) 92%, var(--primary) 8%);
+      color: var(--on-surface);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans CJK SC", "Noto Sans SC", "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, textarea { font: inherit; }
+    button { color: inherit; }
+    .hidden { display: none !important; }
+
+    .app-shell {
+      width: min(100%, 600px);
+      min-height: 100dvh;
+      margin: 0 auto;
+      background: var(--surface);
+      position: relative;
+      overflow: hidden;
+    }
+    @media (min-width: 680px) {
+      body { padding: 24px; }
+      .app-shell {
+        min-height: calc(100dvh - 48px);
+        max-height: calc(100dvh - 48px);
+        border-radius: 34px;
+        box-shadow: var(--shadow);
+        border: 1px solid color-mix(in srgb, var(--outline-variant) 70%, transparent);
+      }
+      .screen { min-height: calc(100dvh - 48px) !important; max-height: calc(100dvh - 48px); }
+      .document-screen { height: calc(100dvh - 48px); }
+    }
+
+    .screen {
+      min-height: 100dvh;
+      background: var(--surface);
+      overflow: auto;
+      position: relative;
+    }
+
+    .home { padding: max(18px, env(safe-area-inset-top)) 20px calc(28px + env(safe-area-inset-bottom)); }
+    .brand-row { display: flex; align-items: center; gap: 13px; margin-bottom: 20px; }
+    .brand-mark {
+      width: 46px; height: 46px; border-radius: 50%;
+      background: var(--primary-container); color: var(--on-primary-container);
+      display: grid; place-items: center; flex: 0 0 auto;
+    }
+    .brand-title { font-size: 22px; line-height: 1.2; font-weight: 680; letter-spacing: -.02em; }
+    .brand-subtitle { font-size: 12px; color: var(--on-surface-variant); margin-top: 3px; }
+    .spacer-grow { flex: 1; }
+
+    .icon-button {
+      width: 44px; height: 44px; border: 0; border-radius: 50%;
+      background: transparent; display: grid; place-items: center; cursor: pointer;
+      transition: background .16s ease, transform .16s ease;
+    }
+    .icon-button:hover { background: var(--surface-container); }
+    .icon-button:active { transform: scale(.94); }
+    .icon { width: 22px; height: 22px; fill: currentColor; }
+
+    .hero {
+      background: var(--secondary-container);
+      color: var(--on-secondary-container);
+      border-radius: var(--radius-xl);
+      padding: 25px 24px 24px;
+      margin-bottom: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: ""; position: absolute; width: 180px; height: 180px; border-radius: 50%;
+      right: -84px; top: -94px; background: color-mix(in srgb, var(--primary) 15%, transparent);
+    }
+    .hero h1 { margin: 0; font-size: clamp(29px, 8vw, 38px); line-height: 1.16; letter-spacing: -.035em; font-weight: 680; position: relative; z-index: 1; }
+    .hero p { margin: 13px 0 22px; font-size: 16px; line-height: 1.58; max-width: 430px; position: relative; z-index: 1; }
+
+    .button {
+      border: 0; min-height: 44px; border-radius: 999px; padding: 0 20px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      font-weight: 650; cursor: pointer; transition: filter .16s ease, transform .16s ease;
+      position: relative; z-index: 1;
+    }
+    .button:hover { filter: brightness(1.04); }
+    .button:active { transform: scale(.97); }
+    .button.primary { background: var(--primary); color: var(--on-primary); }
+    .button.tonal { background: var(--primary-container); color: var(--on-primary-container); }
+    .button.text { background: transparent; color: var(--primary); padding: 0 12px; }
+
+    .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .action-card {
+      border: 0; text-align: left; background: var(--surface-container); color: var(--on-surface);
+      border-radius: var(--radius-l); padding: 18px; min-height: 154px; cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05); transition: transform .16s ease, background .16s ease;
+    }
+    .action-card:hover { transform: translateY(-2px); background: var(--surface-container-high); }
+    .action-card:active { transform: scale(.98); }
+    .action-icon {
+      width: 42px; height: 42px; border-radius: 50%; background: var(--primary-container);
+      color: var(--on-primary-container); display: grid; place-items: center; margin-bottom: 18px;
+    }
+    .action-title { font-weight: 680; font-size: 16px; margin-bottom: 5px; }
+    .action-subtitle { color: var(--on-surface-variant); font-size: 13px; line-height: 1.4; }
+    .section-title { margin: 25px 3px 12px; font-weight: 680; font-size: 16px; }
+    .info-card { background: var(--surface-container-low); border-radius: var(--radius-l); padding: 20px; border: 1px solid color-mix(in srgb, var(--outline-variant) 50%, transparent); }
+    .info-title { font-size: 16px; font-weight: 650; margin-bottom: 8px; }
+    .info-copy { font-size: 14px; line-height: 1.58; color: var(--on-surface-variant); }
+
+    .document-screen { display: flex; flex-direction: column; overflow: hidden; height: 100dvh; }
+    .top-area { flex: 0 0 auto; background: color-mix(in srgb, var(--surface) 94%, transparent); border-bottom: 1px solid var(--outline-variant); z-index: 5; }
+    .topbar {
+      min-height: 64px; display: flex; align-items: center; gap: 4px;
+      padding: max(8px, env(safe-area-inset-top)) 8px 4px;
+    }
+    .title-block { min-width: 0; flex: 1; padding: 0 4px; }
+    .doc-title { font-size: 16px; line-height: 1.25; font-weight: 650; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .dirty-label { min-height: 15px; color: var(--primary); font-size: 11px; margin-top: 2px; }
+
+    .segmented-wrap { padding: 6px 16px 12px; }
+    .segmented { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--outline); border-radius: 999px; overflow: hidden; height: 44px; }
+    .segment {
+      border: 0; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      gap: 7px; color: var(--on-surface); font-weight: 620; transition: background .18s ease;
+    }
+    .segment + .segment { border-left: 1px solid var(--outline); }
+    .segment.active { background: var(--secondary-container); color: var(--on-secondary-container); }
+    .segment .icon { width: 18px; height: 18px; }
+
+    .document-body { flex: 1 1 auto; min-height: 0; overflow: hidden; position: relative; background: var(--surface); }
+    .reader-pane, .editor-pane { height: 100%; overflow: auto; }
+    .reader-pane { overscroll-behavior: contain; }
+    .reader-content {
+      width: 100%; max-width: 760px; margin: 0 auto;
+      padding: 28px var(--reader-padding) 112px;
+      color: var(--on-surface); font-size: var(--reader-size); line-height: var(--reader-line);
+      overflow-wrap: anywhere; text-rendering: optimizeLegibility;
+    }
+    .reader-content h1, .reader-content h2, .reader-content h3, .reader-content h4 {
+      line-height: 1.28; font-weight: 700; letter-spacing: -.018em; color: var(--on-surface);
+    }
+    .reader-content h1 { font-size: 2.05em; margin: .55em 0 .72em; }
+    .reader-content h2 { font-size: 1.52em; margin: 1.85em 0 .68em; }
+    .reader-content h3 { font-size: 1.22em; margin: 1.6em 0 .58em; }
+    .reader-content p { margin: 0 0 1.12em; }
+    .reader-content a { color: var(--primary); text-underline-offset: .18em; }
+    .reader-content hr { border: 0; border-top: 1px solid var(--outline-variant); margin: 2.3em 0; }
+    .reader-content blockquote { margin: 1.45em 0; padding: .1em 0 .1em 1em; border-left: 3px solid var(--primary); color: var(--on-surface-variant); }
+    .reader-content blockquote > :last-child { margin-bottom: 0; }
+    .reader-content ul, .reader-content ol { padding-left: 1.45em; margin: .3em 0 1.15em; }
+    .reader-content li { margin: .26em 0; padding-left: .12em; }
+    .reader-content code { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: .88em; background: var(--surface-container); border-radius: 5px; padding: .13em .35em; }
+    .reader-content pre { margin: 1.45em 0; padding: 16px 17px; overflow-x: auto; background: var(--surface-container); border: 1px solid var(--outline-variant); border-radius: 13px; line-height: 1.58; }
+    .reader-content pre code { background: transparent; padding: 0; font-size: .86em; }
+    .reader-content table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; margin: 1.45em 0; }
+    .reader-content th, .reader-content td { min-width: 112px; padding: 10px 12px; border: 1px solid var(--outline-variant); text-align: left; vertical-align: top; }
+    .reader-content th { background: var(--surface-container); font-weight: 650; }
+    .reader-content input[type="checkbox"] { accent-color: var(--primary); transform: scale(1.05); margin-right: .5em; }
+    .reader-content img { display: block; max-width: 100%; height: auto; margin: 1.5em auto; border-radius: 12px; }
+
+    .editor-pane { display: flex; flex-direction: column; overflow: hidden; background: var(--surface); }
+    .editor {
+      flex: 1 1 auto; width: 100%; min-height: 0; resize: none; border: 0; outline: 0;
+      padding: 24px 22px 32px; background: var(--surface); color: var(--on-surface);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 15.5px; line-height: 1.65; tab-size: 2;
+    }
+    .editor::selection { background: var(--primary-container); color: var(--on-primary-container); }
+    .toolbar {
+      flex: 0 0 auto; display: flex; gap: 8px; overflow-x: auto; padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+      background: var(--surface-container); border-top: 1px solid var(--outline-variant); scrollbar-width: none;
+    }
+    .toolbar::-webkit-scrollbar { display: none; }
+    .tool {
+      border: 0; border-radius: 999px; height: 38px; padding: 0 14px; flex: 0 0 auto;
+      background: var(--primary-container); color: var(--on-primary-container); font-weight: 650; cursor: pointer;
+    }
+    .tool:active { transform: scale(.96); }
+
+    .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.42); z-index: 20; opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+    .scrim.show { opacity: 1; pointer-events: auto; }
+    .sheet {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--surface-container-low);
+      border-radius: 30px 30px 0 0; padding: 12px 24px calc(24px + env(safe-area-inset-bottom));
+      transform: translateY(105%); transition: transform .22s cubic-bezier(.2,.7,.2,1);
+      box-shadow: 0 -12px 40px rgba(0,0,0,.18);
+    }
+    .sheet.show { transform: translateY(0); }
+    .sheet-handle { width: 32px; height: 4px; border-radius: 99px; background: var(--outline); margin: 0 auto 18px; opacity: .65; }
+    .sheet-title { font-size: 21px; font-weight: 680; margin-bottom: 22px; }
+    .setting { margin-bottom: 18px; }
+    .setting-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 620; }
+    .setting-value { color: var(--on-surface-variant); font-weight: 500; }
+    input[type="range"] { width: 100%; accent-color: var(--primary); margin-top: 11px; }
+    .sheet-footer { display: flex; justify-content: flex-end; padding-top: 6px; border-top: 1px solid var(--outline-variant); }
+
+    .snackbar {
+      position: absolute; left: 18px; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 40;
+      background: #313036; color: #f4f0f7; border-radius: 8px; padding: 14px 16px; font-size: 14px;
+      box-shadow: 0 5px 20px rgba(0,0,0,.24); transform: translateY(130%); opacity: 0; transition: .2s ease;
+    }
+    .snackbar.show { transform: translateY(0); opacity: 1; }
+
+    .dialog-wrap { position: absolute; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: rgba(0,0,0,.42); }
+    .dialog { width: min(100%, 330px); background: var(--surface-container-high); border-radius: 28px; padding: 24px; box-shadow: var(--shadow); }
+    .dialog h2 { margin: 0 0 13px; font-size: 23px; line-height: 1.25; }
+    .dialog p { color: var(--on-surface-variant); margin: 0 0 24px; line-height: 1.55; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 4px; }
+
+    .fade-in { animation: fade-in .18s ease both; }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } }
+  </style>
+</head>
+<body>
+  <main class="app-shell" id="app">
+    <section class="screen home" id="homeScreen">
+      <div class="brand-row">
+        <div class="brand-mark" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M5 5.5c2.6-.4 5 .3 7 1.7 2-1.4 4.4-2.1 7-1.7v12.2c-2.5-.4-4.9.3-7 1.8-2.1-1.5-4.5-2.2-7-1.8V5.5Zm2 1.9v8.1c1.7 0 3.3.5 5 1.5 1.7-1 3.3-1.5 5-1.5V7.4c-1.7-.1-3.4.5-5 1.6-1.6-1.1-3.3-1.7-5-1.6Z"/></svg>
+        </div>
+        <div><div class="brand-title">Mora</div><div class="brand-subtitle">Markdown reader &amp; editor</div></div>
+        <div class="spacer-grow"></div>
+        <button class="icon-button" id="themeButton" aria-label="切换深浅主题" title="切换主题">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.03-.91-.1-1.35A7 7 0 0 1 13.35 3.1 9 9 0 0 0 12 3Zm0 2c-.13 0-.26 0-.38.01A9 9 0 0 0 19 12c0 3.87-3.13 7-7 7a7 7 0 0 1 0-14Z"/></svg>
+        </button>
+      </div>
+
+      <section class="hero">
+        <h1>Markdown，<br>回到文档本身。</h1>
+        <p>Material You 原生外壳，安静的阅读页面，以及随时可切换的编辑模式。</p>
+        <button class="button primary" id="sampleButton">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7Zm0 12c-3.69 0-6.92-2.09-8.66-5C5.08 9.09 8.31 7 12 7s6.92 2.09 8.66 5c-1.74 2.91-4.97 5-8.66 5Zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>
+          体验示例文档
+        </button>
+      </section>
+
+      <div class="action-grid">
+        <button class="action-card" id="openButton">
+          <div class="action-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M10 4H2v16h20V6H12l-2-2Zm0 4h10v10H4V6h5.17l2 2H10Z"/></svg></div>
+          <div class="action-title">打开文件</div>
+          <div class="action-subtitle">直接读取本地 .md</div>
+        </button>
+        <button class="action-card" id="newButton">
+          <div class="action-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></svg></div>
+          <div class="action-title">新建文档</div>
+          <div class="action-subtitle">从一张空白页开始</div>
+        </button>
+      </div>
+
+      <div class="section-title">这一版验证什么</div>
+      <section class="info-card">
+        <div class="info-title">阅读与编辑，只有两个主功能</div>
+        <div class="info-copy">不加入 Vault、双链、标签数据库与复杂工作区。文件仍然是标准 Markdown。</div>
+      </section>
+      <input type="file" id="fileInput" accept=".md,.markdown,text/markdown,text/plain" hidden />
+    </section>
+
+    <section class="screen document-screen hidden" id="documentScreen">
+      <header class="top-area">
+        <div class="topbar">
+          <button class="icon-button" id="backButton" aria-label="返回">
+            <svg class="icon" viewBox="0 0 24 24"><path d="m20 11-12.17.01 5.59-5.59L12 4l-8 8 8 8 1.42-1.42L7.83 13H20v-2Z"/></svg>
+          </button>
+          <div class="title-block"><div class="doc-title" id="docTitle">Mora 示例.md</div><div class="dirty-label" id="dirtyLabel"></div></div>
+          <button class="icon-button" id="appearanceButton" aria-label="阅读排版" title="阅读排版">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M5 4v3h5.5v13h3V7H19V4H5Zm-1 8v2h3v6h2v-6h3v-2H4Z"/></svg>
+          </button>
+          <button class="icon-button" id="saveButton" aria-label="保存" title="保存">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm3-10H5V5h10v4Z"/></svg>
+          </button>
+        </div>
+        <div class="segmented-wrap">
+          <div class="segmented" role="tablist">
+            <button class="segment active" id="readSegment" role="tab" aria-selected="true">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7Zm0 12c-3.69 0-6.92-2.09-8.66-5C5.08 9.09 8.31 7 12 7s6.92 2.09 8.66 5c-1.74 2.91-4.97 5-8.66 5Zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>
+              阅读
+            </button>
+            <button class="segment" id="editSegment" role="tab" aria-selected="false">
+              <svg class="icon" viewBox="0 0 24 24"><path d="m3 17.25-.01 3.76L6.75 21 17.81 9.94l-3.75-3.75L3 17.25ZM20.71 7.04a1 1 0 0 0 0-1.42l-2.34-2.34a1 1 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82Z"/></svg>
+              编辑
+            </button>
+          </div>
+        </div>
+      </header>
+      <div class="document-body">
+        <div class="reader-pane" id="readerPane"><article class="reader-content" id="readerContent"></article></div>
+        <div class="editor-pane hidden" id="editorPane">
+          <textarea class="editor" id="editor" spellcheck="false" aria-label="Markdown 编辑器"></textarea>
+          <nav class="toolbar" aria-label="Markdown 快捷工具栏">
+            <button class="tool" data-prefix="# " data-line="true">H1</button>
+            <button class="tool" data-prefix="**" data-suffix="**" data-placeholder="加粗文字">B</button>
+            <button class="tool" data-prefix="*" data-suffix="*" data-placeholder="斜体文字">I</button>
+            <button class="tool" data-prefix="[" data-suffix="](https://)" data-placeholder="链接文字">链接</button>
+            <button class="tool" data-prefix="> " data-line="true">引用</button>
+            <button class="tool" data-prefix="- " data-line="true">列表</button>
+            <button class="tool" data-prefix="- [ ] " data-line="true">任务</button>
+            <button class="tool" data-prefix="`" data-suffix="`" data-placeholder="code">代码</button>
+          </nav>
+        </div>
+      </div>
+    </section>
+
+    <div class="scrim" id="scrim"></div>
+    <section class="sheet" id="appearanceSheet" aria-label="阅读排版设置">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">阅读排版</div>
+      <div class="setting"><div class="setting-row"><span>正文字号</span><span class="setting-value" id="fontValue">17 px</span></div><input type="range" id="fontRange" min="15" max="21" step="1" value="17"></div>
+      <div class="setting"><div class="setting-row"><span>行高</span><span class="setting-value" id="lineValue">1.82</span></div><input type="range" id="lineRange" min="1.5" max="2.1" step="0.1" value="1.8"></div>
+      <div class="setting"><div class="setting-row"><span>页面边距</span><span class="setting-value" id="paddingValue">22 px</span></div><input type="range" id="paddingRange" min="16" max="34" step="2" value="22"></div>
+      <div class="sheet-footer"><button class="button text" id="resetAppearance">恢复默认</button></div>
+    </section>
+
+    <div class="snackbar" id="snackbar" role="status"></div>
+    <div class="dialog-wrap hidden" id="discardDialog">
+      <div class="dialog"><h2>放弃未保存的修改？</h2><p>当前文档有修改，返回后这些内容不会保留。</p><div class="dialog-actions"><button class="button text" id="cancelDiscard">取消</button><button class="button text" id="confirmDiscard">放弃修改</button></div></div>
+    </div>
+  </main>
+
+  <script>
+    const SAMPLE = `# 让 Markdown 回到文档本身
+
+> Material You 原生外壳，Typora 风格阅读区，以及一个稳定、克制的源码编辑器。
+
+这是一版用于验证产品方向的 **Mora Demo**。它不做知识库，不做双链，也不把正文塞进一层层卡片。
+
+## 这版已经覆盖
+
+- [x] 打开本地 \`.md\` 文件
+- [x] 阅读与编辑即时切换
+- [x] Material You 风格
+- [x] Typora 风格的单栏排版
+- [x] 表格、任务列表、引用与代码块
+- [x] 下载保存
+- [ ] 相对路径本地图片
+- [ ] CodeMirror 6 编辑器
+
+## 产品边界
+
+| 维度 | 当前策略 |
+|---|---|
+| 阅读 | Markdown → HTML → CSS → WebView |
+| 编辑 | Demo 用文本编辑器验证交互，正式版替换 CodeMirror 6 |
+| 文件 | Android Storage Access Framework |
+| 视觉 | Material You 外壳 + 文档优先正文 |
+
+## 一段代码
+
+\`\`\`kotlin
+@Composable
+fun MarkdownDocument() {
+    MaterialTheme {
+        ReaderAndEditor()
+    }
+}
+\`\`\`
+
+阅读体验主要由 **正文宽度、字体、行高、段距与标题节奏** 决定，而不是 Markdown 解析器本身。
+
+---
+
+切换到“编辑”后，可以直接修改这篇文档，再回到“阅读”查看排版结果。`;
+
+    const $ = (id) => document.getElementById(id);
+    const state = { name: '', markdown: '', persisted: '', mode: 'read', hasDocument: false };
+    let snackbarTimer;
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+
+    function inlineMarkdown(text) {
+      let output = escapeHtml(text);
+      output = output.replace(/`([^`]+)`/g, '<code>$1</code>');
+      output = output.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+      output = output.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      output = output.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+      output = output.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+      return output;
+    }
+
+    function renderMarkdown(source) {
+      const lines = source.replace(/\r\n?/g, '\n').split('\n');
+      const out = [];
+      let i = 0;
+      let listType = null;
+      const closeList = () => { if (listType) { out.push(`</${listType}>`); listType = null; } };
+
+      while (i < lines.length) {
+        const line = lines[i];
+
+        if (/^```/.test(line)) {
+          closeList();
+          const language = line.slice(3).trim();
+          const code = [];
+          i++;
+          while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; }
+          if (i < lines.length) i++;
+          out.push(`<pre${language ? ` data-language="${escapeHtml(language)}"` : ''}><code>${escapeHtml(code.join('\n'))}</code></pre>`);
+          continue;
+        }
+
+        const tableHeader = line.includes('|') && i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1]);
+        if (tableHeader) {
+          closeList();
+          const splitRow = row => row.trim().replace(/^\||\|$/g, '').split('|').map(cell => cell.trim());
+          const headers = splitRow(line);
+          i += 2;
+          const rows = [];
+          while (i < lines.length && lines[i].includes('|') && lines[i].trim()) { rows.push(splitRow(lines[i])); i++; }
+          out.push('<table><thead><tr>' + headers.map(cell => `<th>${inlineMarkdown(cell)}</th>`).join('') + '</tr></thead><tbody>' + rows.map(row => '<tr>' + headers.map((_, index) => `<td>${inlineMarkdown(row[index] || '')}</td>`).join('') + '</tr>').join('') + '</tbody></table>');
+          continue;
+        }
+
+        const heading = line.match(/^(#{1,4})\s+(.*)$/);
+        if (heading) { closeList(); const level = heading[1].length; out.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`); i++; continue; }
+        if (/^\s*(---+|___+|\*\*\*+)\s*$/.test(line)) { closeList(); out.push('<hr>'); i++; continue; }
+
+        const quote = line.match(/^>\s?(.*)$/);
+        if (quote) {
+          closeList(); const blocks = [];
+          while (i < lines.length && /^>\s?/.test(lines[i])) { blocks.push(lines[i].replace(/^>\s?/, '')); i++; }
+          out.push(`<blockquote><p>${inlineMarkdown(blocks.join('<br>'))}</p></blockquote>`); continue;
+        }
+
+        const task = line.match(/^\s*[-*+]\s+\[([ xX])\]\s+(.*)$/);
+        const bullet = line.match(/^\s*[-*+]\s+(.*)$/);
+        const ordered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+        if (task || bullet || ordered) {
+          const wanted = ordered ? 'ol' : 'ul';
+          if (listType !== wanted) { closeList(); listType = wanted; out.push(`<${wanted}>`); }
+          if (task) out.push(`<li><label><input type="checkbox" disabled ${task[1].toLowerCase() === 'x' ? 'checked' : ''}>${inlineMarkdown(task[2])}</label></li>`);
+          else out.push(`<li>${inlineMarkdown((bullet || ordered)[1])}</li>`);
+          i++; continue;
+        }
+
+        if (!line.trim()) { closeList(); i++; continue; }
+        closeList();
+        const paragraph = [line];
+        i++;
+        while (i < lines.length && lines[i].trim() && !/^(#{1,4})\s+|^```|^>\s?|^\s*[-*+]\s+|^\s*\d+[.)]\s+|^\s*(---+|___+)\s*$/.test(lines[i])) {
+          if (lines[i].includes('|') && i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) break;
+          paragraph.push(lines[i]); i++;
+        }
+        out.push(`<p>${inlineMarkdown(paragraph.join('\n')).replace(/\n/g, '<br>')}</p>`);
+      }
+      closeList();
+      return out.join('\n');
+    }
+
+    function setTheme(theme) {
+      document.documentElement.dataset.theme = theme;
+      try { localStorage.setItem('mora-theme', theme); } catch (_) {}
+      document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#131318' : '#fcf8ff';
+    }
+
+    function showSnackbar(message) {
+      clearTimeout(snackbarTimer); $('snackbar').textContent = message; $('snackbar').classList.add('show');
+      snackbarTimer = setTimeout(() => $('snackbar').classList.remove('show'), 2200);
+    }
+
+    function updateDirty() {
+      const dirty = state.markdown !== state.persisted;
+      $('dirtyLabel').textContent = dirty ? '未保存' : '';
+      return dirty;
+    }
+
+    function openDocument(name, content, mode = 'read') {
+      state.name = name || '未命名.md'; state.markdown = content; state.persisted = content; state.hasDocument = true;
+      $('docTitle').textContent = state.name; $('editor').value = content; $('editor').setSelectionRange(0, 0); $('editor').scrollTop = 0; updateDirty();
+      $('homeScreen').classList.add('hidden'); $('documentScreen').classList.remove('hidden'); $('documentScreen').classList.add('fade-in');
+      setMode(mode); renderReader();
+    }
+
+    function closeDocument(force = false) {
+      if (!force && updateDirty()) { $('discardDialog').classList.remove('hidden'); return; }
+      state.hasDocument = false; $('documentScreen').classList.add('hidden'); $('homeScreen').classList.remove('hidden'); $('discardDialog').classList.add('hidden');
+    }
+
+    function setMode(mode) {
+      state.mode = mode;
+      const reading = mode === 'read';
+      $('readSegment').classList.toggle('active', reading); $('editSegment').classList.toggle('active', !reading);
+      $('readSegment').setAttribute('aria-selected', reading); $('editSegment').setAttribute('aria-selected', !reading);
+      $('readerPane').classList.toggle('hidden', !reading); $('editorPane').classList.toggle('hidden', reading);
+      $('appearanceButton').style.visibility = reading ? 'visible' : 'hidden';
+      if (reading) renderReader(); else setTimeout(() => { $('editor').focus({preventScroll: true}); }, 50);
+    }
+
+    function renderReader() {
+      state.markdown = $('editor').value;
+      $('readerContent').innerHTML = renderMarkdown(state.markdown);
+      updateDirty();
+    }
+
+    function downloadCurrent() {
+      state.markdown = $('editor').value;
+      const blob = new Blob([state.markdown], { type: 'text/markdown;charset=utf-8' });
+      const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = state.name.toLowerCase().endsWith('.md') ? state.name : state.name + '.md';
+      document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href);
+      state.persisted = state.markdown; updateDirty(); showSnackbar('已下载 Markdown 文件');
+    }
+
+    function applyToolbar(button) {
+      const editor = $('editor'); const prefix = button.dataset.prefix || ''; const suffix = button.dataset.suffix || ''; const placeholder = button.dataset.placeholder || '文本';
+      let start = editor.selectionStart, end = editor.selectionEnd; const selected = editor.value.slice(start, end);
+      if (button.dataset.line === 'true') {
+        const lineStart = editor.value.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+        editor.setRangeText(prefix, lineStart, lineStart, 'end'); editor.focus();
+      } else {
+        const body = selected || placeholder; const inserted = prefix + body + suffix;
+        editor.setRangeText(inserted, start, end, 'end');
+        if (!selected) editor.setSelectionRange(start + prefix.length, start + prefix.length + body.length);
+        editor.focus();
+      }
+      state.markdown = editor.value; updateDirty();
+    }
+
+    function openAppearance() { $('scrim').classList.add('show'); $('appearanceSheet').classList.add('show'); }
+    function closeAppearance() { $('scrim').classList.remove('show'); $('appearanceSheet').classList.remove('show'); }
+    function updateAppearance() {
+      const font = $('fontRange').value; const line = Number($('lineRange').value).toFixed(2); const padding = $('paddingRange').value;
+      document.documentElement.style.setProperty('--reader-size', font + 'px'); document.documentElement.style.setProperty('--reader-line', line); document.documentElement.style.setProperty('--reader-padding', padding + 'px');
+      $('fontValue').textContent = font + ' px'; $('lineValue').textContent = line; $('paddingValue').textContent = padding + ' px';
+    }
+
+    $('sampleButton').addEventListener('click', () => openDocument('Mora 示例.md', SAMPLE, 'read'));
+    $('newButton').addEventListener('click', () => openDocument('未命名.md', '# 未命名文档\n\n从这里开始写作。', 'edit'));
+    $('openButton').addEventListener('click', () => $('fileInput').click());
+    $('fileInput').addEventListener('change', event => {
+      const file = event.target.files[0]; if (!file) return;
+      const reader = new FileReader(); reader.onload = () => openDocument(file.name, String(reader.result), 'read'); reader.onerror = () => showSnackbar('无法读取这个文件'); reader.readAsText(file, 'utf-8');
+      event.target.value = '';
+    });
+    $('themeButton').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+    $('backButton').addEventListener('click', () => closeDocument());
+    $('confirmDiscard').addEventListener('click', () => closeDocument(true));
+    $('cancelDiscard').addEventListener('click', () => $('discardDialog').classList.add('hidden'));
+    $('readSegment').addEventListener('click', () => setMode('read'));
+    $('editSegment').addEventListener('click', () => setMode('edit'));
+    $('editor').addEventListener('input', () => { state.markdown = $('editor').value; updateDirty(); });
+    $('saveButton').addEventListener('click', downloadCurrent);
+    $('appearanceButton').addEventListener('click', openAppearance);
+    $('scrim').addEventListener('click', closeAppearance);
+    document.querySelectorAll('.tool').forEach(button => button.addEventListener('click', () => applyToolbar(button)));
+    ['fontRange','lineRange','paddingRange'].forEach(id => $(id).addEventListener('input', updateAppearance));
+    $('resetAppearance').addEventListener('click', () => { $('fontRange').value = 17; $('lineRange').value = 1.8; $('paddingRange').value = 22; updateAppearance(); });
+    window.addEventListener('beforeunload', event => { if (state.hasDocument && updateDirty()) { event.preventDefault(); event.returnValue = ''; } });
+
+    let savedTheme = null;
+    try { savedTheme = localStorage.getItem('mora-theme'); } catch (_) {}
+    setTheme(savedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+    updateAppearance();
+  </script>
+</body>
+</html>

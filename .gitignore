@@ -1,0 +1,29 @@
+.gradle/
+.kotlin/
+.idea/
+local.properties
+**/build/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+secrets.properties
+
+# Signing material
+*.jks
+*.keystore
+*.p12
+keystore.properties
+signing.properties
+
+# Android packages and signing sidecars
+*.apk
+*.aab
+*.apks
+*.idsig

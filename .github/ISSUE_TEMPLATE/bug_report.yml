@@ -1,0 +1,92 @@
+name: Bug report
+description: Report a reproducible problem in Mora
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve Mora. Do not attach private documents; create a minimal sanitized sample when file content matters.
+
+  - type: input
+    id: version
+    attributes:
+      label: Mora version
+      description: Find this in the installed APK or release name.
+      placeholder: "0.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: android
+    attributes:
+      label: Android version and device
+      placeholder: "Android 14, Pixel 7"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: entry
+    attributes:
+      label: How was the document opened?
+      options:
+        - Mora file picker
+        - Recent documents
+        - File manager / Android VIEW or EDIT intent
+        - Share from another app / Android SEND intent
+        - New document
+        - Not document-related
+    validations:
+      required: true
+
+  - type: input
+    id: provider
+    attributes:
+      label: Source app or file provider
+      description: Include this when opening, saving, or permissions are involved.
+      placeholder: "Files by Google, WeChat, Google Drive, Syncthing…"
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open…
+        2. Tap…
+        3. Observe…
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Add a screenshot or a short screen recording if it is safe to share.
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: Minimal sample or additional context
+      description: Paste only sanitized Markdown or logs needed to reproduce the issue.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I removed private document content, credentials, and personal information.
+          required: true
+        - label: This is not a security vulnerability; security reports follow SECURITY.md.
+          required: true
