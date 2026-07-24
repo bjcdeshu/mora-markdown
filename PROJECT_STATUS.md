@@ -16,13 +16,20 @@ single-document workflow:
 - separate Home-level application settings and Reader typography controls;
 - system/light/dark appearance plus an optional pure-black dark surface;
 - three selectable Fine Frame launcher palettes;
-- predictive document-to-Home Back on supported Android versions.
+- predictive document-to-Home Back that previews the real composed Home beneath
+  the current document on supported Android versions.
 
 No public v0.3.0 RC is planned. The release path deliberately validates two exact
 assets: first the protected manual Actions artifact built from `main`, then the
 new APK rebuilt behind the hidden stable-tag Draft. The same approved Draft
 Release is finally edited to stable without moving its tag or replacing its
 attachments.
+
+An earlier protected v0.3.0 candidate was generated and identity-verified from the
+pre-polish `main` baseline, but it was superseded before tag approval when the
+predictive-Back destination preview was refined. It must not be tagged or released.
+The next signed candidate must be built from the final release-metadata commit after
+the polish is merged and `main` CI is green.
 
 The first long-term RSA-2048 identity was generated outside the repository on
 2026-07-24. Its encrypted keystore backups and independently stored credentials
@@ -102,11 +109,9 @@ app/build/outputs/apk/debug/app-debug.apk
 
 Changes involving file providers, external intents, saving, layout, or accessibility also require focused emulator or real-device checks.
 
-The v0.3.0 preparation branch's full local run on 2026-07-25 passed all three
-tasks. The JVM suite ran 51 tests with no failures; lint completed with 0 errors
-and 11 non-blocking follow-up warnings; the Debug APK assembled successfully. A
-fresh clean run and the same green GitHub Actions gate remain required before
-merge. No lint baseline or new suppression was introduced.
+The final release-preparation commit must pass the full local command and the same
+green GitHub Actions gate before a signed candidate is built. No lint baseline or
+new suppression may be introduced to make the gate pass.
 
 ## Release boundary
 
@@ -114,9 +119,9 @@ Release signing material must stay outside Git and be backed up independently;
 GitHub Secrets are delivery infrastructure, not a backup.
 
 - Pull-request and `main` CI build only Debug APKs and never receive signing secrets.
-- The first v0.3.0 signed candidate may be produced only from `main` through the
-  protected release environment; its exact downloaded APK must pass identity
-  checks and the complete device matrix.
+- The release-eligible v0.3.0 signed candidate may be produced only from the final
+  release-metadata commit on `main` through the protected release environment; its
+  exact downloaded APK must pass identity checks and the complete device matrix.
 - Only explicit maintainer approval of that exact candidate permits the annotated
   stable tag.
 - The stable tag rebuilds a different candidate into a hidden Draft Pre-release.

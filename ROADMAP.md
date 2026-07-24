@@ -33,6 +33,11 @@ for the complete device gate. Only after approval is the stable tag created; its
 hidden Draft asset must independently repeat the same gate before that same
 Release is made public as stable.
 
+## v0.3.x — focused follow-up
+
+- Add a simple option to disable Android 12+ dynamic color and use Mora's calm
+  fallback palette; this does not expand into a custom color editor.
+
 ## Next
 
 Priorities after v0.3.0:
