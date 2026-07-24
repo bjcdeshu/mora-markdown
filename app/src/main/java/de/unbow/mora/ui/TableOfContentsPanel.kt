@@ -39,11 +39,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import de.unbow.mora.R
 import de.unbow.mora.markdown.MarkdownHeading
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -137,12 +140,16 @@ private fun TableOfContentsContent(
                 modifier = Modifier.align(Alignment.CenterStart),
             ) {
                 Text(
-                    text = "目录",
+                    text = stringResource(R.string.toc_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "${headings.size} 个标题",
+                    text = pluralStringResource(
+                        R.plurals.heading_count,
+                        headings.size,
+                        headings.size,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -151,7 +158,10 @@ private fun TableOfContentsContent(
                 onClick = onDismiss,
                 modifier = Modifier.align(Alignment.CenterEnd),
             ) {
-                Icon(Icons.Outlined.Close, contentDescription = "关闭目录")
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = stringResource(R.string.close_table_of_contents),
+                )
             }
         }
 
@@ -174,7 +184,7 @@ private fun TableOfContentsContent(
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "这个文档没有一级至三级标题",
+                    text = stringResource(R.string.no_document_headings),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

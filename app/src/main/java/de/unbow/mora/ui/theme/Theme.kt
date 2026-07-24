@@ -12,7 +12,10 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocal
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -42,6 +45,11 @@ private val FallbackDark = darkColorScheme(
     surfaceContainer = Color(0xFF201F25),
     surfaceContainerHigh = Color(0xFF2B292F),
 )
+
+private val LocalMoraIsDarkProvider = staticCompositionLocalOf { false }
+
+val LocalMoraIsDark: CompositionLocal<Boolean>
+    get() = LocalMoraIsDarkProvider
 
 @Composable
 fun MoraTheme(
@@ -83,10 +91,12 @@ fun MoraTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colors,
-        content = content,
-    )
+    CompositionLocalProvider(LocalMoraIsDarkProvider provides effectiveDark) {
+        MaterialTheme(
+            colorScheme = colors,
+            content = content,
+        )
+    }
 }
 
 internal fun resolveEffectiveDark(

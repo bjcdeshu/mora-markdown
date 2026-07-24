@@ -7,10 +7,38 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import de.unbow.mora.data.DocumentAccessException
+import de.unbow.mora.data.DocumentFailure
 import de.unbow.mora.data.DocumentRepository
 import de.unbow.mora.data.RecentDocument
 import de.unbow.mora.data.RecentDocumentsRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+
+sealed interface DocumentUiError {
+    data class OpenFailed(val documentName: String) : DocumentUiError
+}
+
+sealed interface DocumentSaveResult {
+    data object Saved : DocumentSaveResult
+    data class Failed(val failure: DocumentFailure) : DocumentSaveResult
+}
+
+internal data class ResolvedDocumentName(
+    val displayName: String,
+    val persistedName: String,
+)
+
+internal fun resolveDocumentName(
+    sourceName: String?,
+    fallbackName: String,
+): ResolvedDocumentName {
+    val originalName = sourceName?.takeIf(String::isNotBlank)
+    return ResolvedDocumentName(
+        displayName = originalName ?: fallbackName,
+        persistedName = originalName.orEmpty(),
+    )
+}
 
 data class DocumentUiState(
     val sessionId: Long = 0L,
@@ -22,7 +50,7 @@ data class DocumentUiState(
     val initialScrollY: Int = 0,
     val isDirty: Boolean = false,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null,
+    val error: DocumentUiError? = null,
     val contentVersion: Long = 0L,
 )
 
@@ -48,6 +76,7 @@ class MarkdownViewModel : ViewModel() {
     fun openDocument(
         context: Context,
         uri: Uri,
+        fallbackName: String,
     ) {
         val requestSessionId = nextSessionId()
         val requestVersion = nextVersion()
@@ -57,7 +86,7 @@ class MarkdownViewModel : ViewModel() {
         val displayName = uri.lastPathSegment
             ?.substringAfterLast('/')
             ?.takeIf(String::isNotBlank)
-            ?: "正在打开…"
+            ?: fallbackName
 
         persistedContent = ""
         uiState = DocumentUiState(
@@ -71,53 +100,59 @@ class MarkdownViewModel : ViewModel() {
         )
 
         viewModelScope.launch {
-            runCatching { DocumentRepository.read(context, uri) }
-                .onSuccess { loaded ->
-                    if (uiState.sessionId != requestSessionId) return@onSuccess
-                    persistedContent = loaded.content
-                    recentDocuments = RecentDocumentsRepository.recordOpened(
-                        context = context,
-                        uri = uri,
-                        name = loaded.name,
-                    )
-                    uiState = uiState.copy(
-                        name = loaded.name,
-                        content = loaded.content,
-                        canWrite = loaded.canWrite,
-                        isDirty = false,
-                        isLoading = false,
-                        initialScrollY = knownPosition,
-                        contentVersion = nextVersion(),
-                    )
-                }
-                .onFailure { error ->
-                    if (uiState.sessionId != requestSessionId) return@onFailure
-                    recentDocuments = RecentDocumentsRepository.remove(context, uri)
-                    persistedContent = ""
-                    uiState = DocumentUiState(
-                        sessionId = requestSessionId,
-                        errorMessage = "无法打开「$displayName」：${error.message ?: "读取失败"}",
-                        contentVersion = nextVersion(),
-                    )
-                }
+            val loaded = try {
+                DocumentRepository.read(context, uri)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                if (uiState.sessionId != requestSessionId) return@launch
+                recentDocuments = RecentDocumentsRepository.remove(context, uri)
+                persistedContent = ""
+                uiState = DocumentUiState(
+                    sessionId = requestSessionId,
+                    error = DocumentUiError.OpenFailed(displayName),
+                    contentVersion = nextVersion(),
+                )
+                return@launch
+            }
+
+            if (uiState.sessionId != requestSessionId) return@launch
+            persistedContent = loaded.content
+            val resolvedName = resolveDocumentName(
+                sourceName = loaded.name,
+                fallbackName = fallbackName,
+            )
+            recentDocuments = RecentDocumentsRepository.recordOpened(
+                context = context,
+                uri = uri,
+                name = resolvedName.persistedName,
+            )
+            uiState = uiState.copy(
+                name = resolvedName.displayName,
+                content = loaded.content,
+                canWrite = loaded.canWrite,
+                isDirty = false,
+                isLoading = false,
+                initialScrollY = knownPosition,
+                contentVersion = nextVersion(),
+            )
         }
     }
 
-    fun newDraft() {
-        val initial = "# 未命名文档\n\n从这里开始写作。"
+    fun newDraft(name: String, initialContent: String) {
         persistedContent = ""
         uiState = DocumentUiState(
             sessionId = nextSessionId(),
             hasDocument = true,
-            name = "未命名.md",
-            content = initial,
+            name = name,
+            content = initialContent,
             canWrite = false,
             isDirty = true,
             contentVersion = nextVersion(),
         )
     }
 
-    fun openSharedText(content: String, name: String = "共享内容.md") {
+    fun openSharedText(content: String, name: String) {
         persistedContent = ""
         uiState = DocumentUiState(
             sessionId = nextSessionId(),
@@ -138,11 +173,11 @@ class MarkdownViewModel : ViewModel() {
         )
     }
 
-    fun save(context: Context, onResult: (Result<Unit>) -> Unit) {
+    fun save(context: Context, onResult: (DocumentSaveResult) -> Unit) {
         val stateToSave = uiState
         val uri = stateToSave.uri
         if (uri == null || !stateToSave.canWrite) {
-            onResult(Result.failure(IllegalStateException("这个文件需要另存为")))
+            onResult(DocumentSaveResult.Failed(DocumentFailure.SAVE_AS_REQUIRED))
             return
         }
         saveTo(
@@ -156,7 +191,7 @@ class MarkdownViewModel : ViewModel() {
         )
     }
 
-    fun saveAs(context: Context, uri: Uri, onResult: (Result<Unit>) -> Unit) {
+    fun saveAs(context: Context, uri: Uri, onResult: (DocumentSaveResult) -> Unit) {
         val stateToSave = uiState
         saveTo(
             context = context,
@@ -184,40 +219,50 @@ class MarkdownViewModel : ViewModel() {
         contentToSave: String,
         updateDocumentIdentity: Boolean,
         fallbackName: String,
-        onResult: (Result<Unit>) -> Unit,
+        onResult: (DocumentSaveResult) -> Unit,
     ) {
         viewModelScope.launch {
-            val result = runCatching {
+            val failure = try {
                 DocumentRepository.write(context, uri, contentToSave)
+                null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: DocumentAccessException) {
+                error.failure
+            } catch (_: Exception) {
+                DocumentFailure.WRITE_FAILED
             }
 
             if (uiState.sessionId != sessionId) return@launch
 
-            result.onSuccess {
-                persistedContent = contentToSave
-                val name = if (updateDocumentIdentity) {
-                    DocumentRepository.displayName(context, uri) ?: fallbackName
-                } else {
-                    uiState.name
-                }
-                if (updateDocumentIdentity) {
-                    recentDocuments = RecentDocumentsRepository.recordOpened(
-                        context = context,
-                        uri = uri,
-                        name = name,
-                    )
-                }
-                uiState = uiState.copy(
-                    uri = uri,
-                    name = name,
-                    canWrite = true,
-                    initialScrollY = if (updateDocumentIdentity) 0 else uiState.initialScrollY,
-                    isDirty = uiState.content != contentToSave,
-                    errorMessage = null,
-                )
+            if (failure != null) {
+                onResult(DocumentSaveResult.Failed(failure))
+                return@launch
             }
 
-            onResult(result)
+            persistedContent = contentToSave
+            val name = if (updateDocumentIdentity) {
+                DocumentRepository.displayName(context, uri) ?: fallbackName
+            } else {
+                uiState.name
+            }
+            if (updateDocumentIdentity) {
+                recentDocuments = RecentDocumentsRepository.recordOpened(
+                    context = context,
+                    uri = uri,
+                    name = name,
+                )
+            }
+            uiState = uiState.copy(
+                uri = uri,
+                name = name,
+                canWrite = true,
+                initialScrollY = if (updateDocumentIdentity) 0 else uiState.initialScrollY,
+                isDirty = uiState.content != contentToSave,
+                error = null,
+            )
+
+            onResult(DocumentSaveResult.Saved)
         }
     }
 
@@ -230,7 +275,7 @@ class MarkdownViewModel : ViewModel() {
     }
 
     fun consumeError() {
-        uiState = uiState.copy(errorMessage = null)
+        uiState = uiState.copy(error = null)
     }
 
     private fun nextVersion(): Long {

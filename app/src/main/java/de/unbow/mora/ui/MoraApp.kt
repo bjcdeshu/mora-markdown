@@ -24,15 +24,21 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.unbow.mora.IncomingDocumentRequest
+import de.unbow.mora.R
 import de.unbow.mora.data.AppSettings
+import de.unbow.mora.data.DocumentFailure
 import de.unbow.mora.data.DocumentRepository
 import de.unbow.mora.data.ReaderSettingsRepository
 import de.unbow.mora.markdown.ReaderPalette
 import de.unbow.mora.markdown.ReaderPreferences
+import de.unbow.mora.model.DocumentSaveResult
+import de.unbow.mora.model.DocumentUiError
 import de.unbow.mora.model.MarkdownViewModel
+import de.unbow.mora.ui.theme.LocalMoraIsDark
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -49,6 +55,16 @@ fun MoraApp(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val storedReaderPreferences = remember(context) { ReaderSettingsRepository.load(context) }
+    val effectiveDark = LocalMoraIsDark.current
+    val defaultDocumentFilename = stringResource(R.string.default_document_filename)
+    val untitledFilenameBase = stringResource(R.string.untitled_filename_base)
+    val untitledDocumentFilename = stringResource(R.string.untitled_document_filename)
+    val newDraftTemplate = stringResource(R.string.new_draft_template)
+    val untitledHeading = stringResource(R.string.untitled_heading)
+    val savedMessage = stringResource(R.string.document_saved)
+    val saveFailedMessage = stringResource(R.string.document_save_failed)
+    val saveAsRequiredMessage = stringResource(R.string.document_requires_save_as)
+    val readOnlyNotice = stringResource(R.string.read_only_document_notice)
 
     var mode by rememberSaveable { mutableStateOf(DocumentMode.READING) }
     var showAppearance by rememberSaveable { mutableStateOf(false) }
@@ -78,7 +94,11 @@ fun MoraApp(
     fun openDocument(uri: Uri) {
         readerScrollY = 0
         mode = DocumentMode.READING
-        markdownViewModel.openDocument(context, uri)
+        markdownViewModel.openDocument(
+            context = context,
+            uri = uri,
+            fallbackName = defaultDocumentFilename,
+        )
     }
 
     fun acceptIncoming(request: IncomingDocumentRequest) {
@@ -91,7 +111,7 @@ fun MoraApp(
             mode = DocumentMode.READING
             markdownViewModel.openSharedText(
                 content = request.sharedText.orEmpty(),
-                name = normalizedMarkdownName(request.suggestedName),
+                name = request.suggestedName,
             )
         }
         onIncomingRequestConsumed(request.id)
@@ -122,19 +142,32 @@ fun MoraApp(
         }
     }
 
-    LaunchedEffect(state.errorMessage) {
-        val message = state.errorMessage ?: return@LaunchedEffect
+    val localizedError = when (val error = state.error) {
+        is DocumentUiError.OpenFailed -> stringResource(
+            R.string.open_document_failed,
+            error.documentName,
+        )
+
+        null -> null
+    }
+    LaunchedEffect(state.error, localizedError) {
+        val message = localizedError ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
         markdownViewModel.consumeError()
     }
 
-    val notifySave: (Result<Unit>) -> Unit = { result ->
+    val notifySave: (DocumentSaveResult) -> Unit = { result ->
         scope.launch {
             snackbarHostState.showSnackbar(
-                result.fold(
-                    onSuccess = { "已保存" },
-                    onFailure = { it.message ?: "保存失败" },
-                ),
+                when (result) {
+                    DocumentSaveResult.Saved -> savedMessage
+                    is DocumentSaveResult.Failed -> when (result.failure) {
+                        DocumentFailure.SAVE_AS_REQUIRED -> saveAsRequiredMessage
+                        DocumentFailure.READ_FAILED,
+                        DocumentFailure.WRITE_FAILED,
+                        -> saveFailedMessage
+                    }
+                },
             )
         }
     }
@@ -187,7 +220,10 @@ fun MoraApp(
                 onNewDraft = {
                     readerScrollY = 0
                     mode = DocumentMode.EDITING
-                    markdownViewModel.newDraft()
+                    markdownViewModel.newDraft(
+                        name = untitledDocumentFilename,
+                        initialContent = newDraftTemplate,
+                    )
                 },
                 onOpenRecent = { document ->
                     openDocument(document.uri)
@@ -225,6 +261,8 @@ fun MoraApp(
                 mode = mode,
                 palette = palette,
                 preferences = currentPreferences(),
+                effectiveDark = effectiveDark,
+                untitledHeading = untitledHeading,
                 readerScrollY = readerScrollY,
                 snackbarHostState = snackbarHostState,
                 onReaderPositionChanged = { uri, position ->
@@ -241,7 +279,7 @@ fun MoraApp(
                         !state.canWrite
                     ) {
                         scope.launch {
-                            snackbarHostState.showSnackbar("原文件为只读，修改后将另存为")
+                            snackbarHostState.showSnackbar(readOnlyNotice)
                         }
                     }
                 },
@@ -249,7 +287,9 @@ fun MoraApp(
                 onAppearance = { showAppearance = true },
                 onSave = {
                     if (state.uri == null || !state.canWrite) {
-                        createDocument.launch(normalizedMarkdownName(state.name))
+                        createDocument.launch(
+                            normalizedMarkdownName(state.name, untitledFilenameBase),
+                        )
                     } else {
                         markdownViewModel.save(context, notifySave)
                     }
@@ -264,7 +304,11 @@ fun MoraApp(
 
     if (showAppearance) {
         AppearanceSheet(
-            title = if (state.hasDocument) "阅读排版" else "阅读设置",
+            title = if (state.hasDocument) {
+                stringResource(R.string.reading_typography)
+            } else {
+                stringResource(R.string.reading_settings)
+            },
             fontSize = fontSize,
             lineHeight = lineHeight,
             horizontalPadding = horizontalPadding,
@@ -293,8 +337,8 @@ fun MoraApp(
     if (showDiscardDialog) {
         AlertDialog(
             onDismissRequest = { showDiscardDialog = false },
-            title = { Text("放弃未保存的修改？") },
-            text = { Text("返回后，当前文档中的修改不会保留。") },
+            title = { Text(stringResource(R.string.discard_changes_title)) },
+            text = { Text(stringResource(R.string.discard_changes_body)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -302,10 +346,12 @@ fun MoraApp(
                         readerScrollY = 0
                         markdownViewModel.closeDocument()
                     },
-                ) { Text("放弃修改") }
+                ) { Text(stringResource(R.string.discard_changes)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDiscardDialog = false }) { Text("取消") }
+                TextButton(onClick = { showDiscardDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
             },
         )
     }
@@ -316,15 +362,15 @@ fun MoraApp(
                 pendingIncomingRequest = null
                 onIncomingRequestConsumed(request.id)
             },
-            title = { Text("打开新文档？") },
-            text = { Text("当前文档还有未保存的修改。继续后，这些修改不会保留。") },
+            title = { Text(stringResource(R.string.open_new_document_title)) },
+            text = { Text(stringResource(R.string.open_new_document_body)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         pendingIncomingRequest = null
                         acceptIncoming(request)
                     },
-                ) { Text("放弃并打开") }
+                ) { Text(stringResource(R.string.discard_and_open)) }
             },
             dismissButton = {
                 TextButton(
@@ -332,14 +378,14 @@ fun MoraApp(
                         pendingIncomingRequest = null
                         onIncomingRequestConsumed(request.id)
                     },
-                ) { Text("取消") }
+                ) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
 }
 
-private fun normalizedMarkdownName(name: String): String {
-    val trimmed = name.trim().ifEmpty { "未命名" }
+private fun normalizedMarkdownName(name: String, fallbackName: String): String {
+    val trimmed = name.trim().ifEmpty { fallbackName }
     return if (trimmed.endsWith(".md", ignoreCase = true)) trimmed else "$trimmed.md"
 }
 

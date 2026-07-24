@@ -30,6 +30,8 @@ class MarkdownRendererTest {
             """.trimIndent(),
             palette = palette,
             preferences = ReaderPreferences.Default,
+            effectiveDark = false,
+            untitledHeading = "Untitled heading",
         )
 
         assertEquals(
@@ -55,6 +57,8 @@ class MarkdownRendererTest {
             """.trimIndent(),
             palette = palette,
             preferences = ReaderPreferences.Default,
+            effectiveDark = false,
+            untitledHeading = "Untitled heading",
         )
 
         assertFalse(rendered.html.contains("<script>"))
@@ -68,6 +72,8 @@ class MarkdownRendererTest {
             markdown = "# 标题\n\n正文",
             palette = palette,
             preferences = ReaderPreferences.Default,
+            effectiveDark = false,
+            untitledHeading = "Untitled heading",
         )
 
         assertTrue(rendered.html.contains("font-size: 17.0px"))
@@ -82,9 +88,55 @@ class MarkdownRendererTest {
             markdown = "# A document in an unknown language",
             palette = palette,
             preferences = ReaderPreferences.Default,
+            effectiveDark = false,
+            untitledHeading = "Untitled heading",
         )
 
         assertTrue(rendered.html.contains("<html>"))
         assertFalse(rendered.html.contains("<html lang="))
+    }
+
+    @Test
+    fun `emits one explicit color scheme selected by the app theme`() {
+        val light = MarkdownRenderer.render(
+            markdown = "# Light",
+            palette = palette,
+            preferences = ReaderPreferences.Default,
+            effectiveDark = false,
+            untitledHeading = "Untitled heading",
+        )
+        val dark = MarkdownRenderer.render(
+            markdown = "# Dark",
+            palette = palette.copy(background = "#000000", text = "#FFFFFF"),
+            preferences = ReaderPreferences.Default,
+            effectiveDark = true,
+            untitledHeading = "Untitled heading",
+        )
+
+        assertTrue(light.html.contains("color-scheme: light;"))
+        assertFalse(light.html.contains("color-scheme: dark;"))
+        assertTrue(dark.html.contains("color-scheme: dark;"))
+        assertFalse(dark.html.contains("color-scheme: light;"))
+        assertFalse(light.html.contains("color-scheme: light dark"))
+        assertFalse(dark.html.contains("color-scheme: light dark"))
+    }
+
+    @Test
+    fun `uses the supplied locale placeholder only for untitled headings`() {
+        val rendered = MarkdownRenderer.render(
+            markdown = "#\n\n## 用户标题",
+            palette = palette,
+            preferences = ReaderPreferences.Default,
+            effectiveDark = false,
+            untitledHeading = "Untitled heading",
+        )
+
+        assertEquals(
+            listOf(
+                MarkdownHeading("heading-0", 1, "Untitled heading"),
+                MarkdownHeading("heading-1", 2, "用户标题"),
+            ),
+            rendered.headings,
+        )
     }
 }

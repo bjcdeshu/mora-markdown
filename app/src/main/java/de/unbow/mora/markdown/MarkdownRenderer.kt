@@ -65,10 +65,12 @@ object MarkdownRenderer {
         markdown: String,
         palette: ReaderPalette,
         preferences: ReaderPreferences,
+        effectiveDark: Boolean,
+        untitledHeading: String,
     ): RenderedMarkdown {
         val document = parser.parse(markdown)
         val headingIds = IdentityHashMap<Node, String>()
-        val headings = collectHeadings(document, headingIds)
+        val headings = collectHeadings(document, headingIds, untitledHeading)
         val renderer = HtmlRenderer.builder()
             .extensions(extensions)
             .escapeHtml(true)
@@ -90,7 +92,7 @@ object MarkdownRenderer {
                   <meta charset="utf-8" />
                   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
                   <style>
-                    :root { color-scheme: light dark; }
+                    :root { color-scheme: ${if (effectiveDark) "dark" else "light"}; }
                     * { box-sizing: border-box; }
                     html, body { margin: 0; padding: 0; background: ${palette.background}; }
                     body {
@@ -196,6 +198,7 @@ object MarkdownRenderer {
     private fun collectHeadings(
         document: Node,
         headingIds: IdentityHashMap<Node, String>,
+        untitledHeading: String,
     ): List<MarkdownHeading> {
         val headings = mutableListOf<MarkdownHeading>()
         document.accept(
@@ -207,7 +210,7 @@ object MarkdownRenderer {
                         headings += MarkdownHeading(
                             id = id,
                             level = heading.level,
-                            title = heading.plainText().ifBlank { "未命名标题" },
+                            title = heading.plainText().ifBlank { untitledHeading },
                         )
                     }
                     visitChildren(heading)

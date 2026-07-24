@@ -31,6 +31,11 @@ android {
         compose = true
     }
 
+    androidResources {
+        generateLocaleConfig = true
+        localeFilters += listOf("en-rUS", "zh-rCN")
+    }
+
     signingConfigs {
         create("release") {
             storeFile = releaseStoreFile.orNull

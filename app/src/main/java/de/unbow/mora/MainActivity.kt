@@ -19,7 +19,7 @@ data class IncomingDocumentRequest(
     val id: Long,
     val uri: Uri? = null,
     val sharedText: String? = null,
-    val suggestedName: String = "共享内容.md",
+    val suggestedName: String,
     val grantedFlags: Int,
 )
 
@@ -94,7 +94,7 @@ class MainActivity : ComponentActivity() {
             sharedText = sharedText,
             suggestedName = sourceIntent.getStringExtra(Intent.EXTRA_TITLE)
                 ?.takeIf(String::isNotBlank)
-                ?: "共享内容.md",
+                ?: getString(R.string.shared_document_filename),
             grantedFlags = sourceIntent.flags,
         )
     }

@@ -66,12 +66,14 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import de.unbow.mora.R
 import de.unbow.mora.markdown.MarkdownRenderer
 import de.unbow.mora.markdown.ReaderPalette
 import de.unbow.mora.markdown.ReaderPreferences
@@ -85,6 +87,8 @@ private data class ReaderRenderRequest(
     val markdown: String,
     val palette: ReaderPalette,
     val preferences: ReaderPreferences,
+    val effectiveDark: Boolean,
+    val untitledHeading: String,
 )
 
 @Composable
@@ -99,6 +103,8 @@ internal fun DocumentScreen(
     mode: DocumentMode,
     palette: ReaderPalette,
     preferences: ReaderPreferences,
+    effectiveDark: Boolean,
+    untitledHeading: String,
     readerScrollY: Int,
     snackbarHostState: SnackbarHostState,
     onReaderPositionChanged: (Uri, Int) -> Unit,
@@ -114,8 +120,20 @@ internal fun DocumentScreen(
     var renderedRequest by remember(documentKey) {
         mutableStateOf<ReaderRenderRequest?>(null)
     }
-    val requestedRender = remember(markdown, palette, preferences) {
-        ReaderRenderRequest(markdown, palette, preferences)
+    val requestedRender = remember(
+        markdown,
+        palette,
+        preferences,
+        effectiveDark,
+        untitledHeading,
+    ) {
+        ReaderRenderRequest(
+            markdown = markdown,
+            palette = palette,
+            preferences = preferences,
+            effectiveDark = effectiveDark,
+            untitledHeading = untitledHeading,
+        )
     }
 
     LaunchedEffect(documentKey, mode, loading, requestedRender) {
@@ -125,6 +143,8 @@ internal fun DocumentScreen(
                     markdown = requestedRender.markdown,
                     palette = requestedRender.palette,
                     preferences = requestedRender.preferences,
+                    effectiveDark = requestedRender.effectiveDark,
+                    untitledHeading = requestedRender.untitledHeading,
                 )
             }
             cachedRenderedMarkdown = rendered
@@ -388,7 +408,7 @@ private fun DocumentTopBar(
                 )
                 if (dirty) {
                     Text(
-                        text = "未保存",
+                        text = stringResource(R.string.unsaved_changes),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -397,16 +417,25 @@ private fun DocumentTopBar(
         },
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回")
+                Icon(
+                    Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = stringResource(R.string.navigate_back),
+                )
             }
         },
         actions = {
             IconButton(onClick = onRead) {
-                Icon(Icons.Outlined.Visibility, contentDescription = "阅读")
+                Icon(
+                    Icons.Outlined.Visibility,
+                    contentDescription = stringResource(R.string.read_document),
+                )
             }
             if (dirty) {
                 IconButton(onClick = onSave) {
-                    Icon(Icons.Outlined.Save, contentDescription = "保存")
+                    Icon(
+                        Icons.Outlined.Save,
+                        contentDescription = stringResource(R.string.save_document),
+                    )
                 }
             }
         },
@@ -433,7 +462,10 @@ private fun ReaderToolbar(
             shadowElevation = 3.dp,
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回")
+                Icon(
+                    Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = stringResource(R.string.navigate_back),
+                )
             }
         }
 
@@ -450,17 +482,26 @@ private fun ReaderToolbar(
                 IconButton(onClick = onTableOfContents) {
                     Icon(
                         Icons.AutoMirrored.Outlined.MenuBook,
-                        contentDescription = "目录",
+                        contentDescription = stringResource(R.string.table_of_contents),
                     )
                 }
                 IconButton(onClick = onSearch) {
-                    Icon(Icons.Outlined.Search, contentDescription = "搜索")
+                    Icon(
+                        Icons.Outlined.Search,
+                        contentDescription = stringResource(R.string.search_document),
+                    )
                 }
                 IconButton(onClick = onEdit) {
-                    Icon(Icons.Outlined.Edit, contentDescription = "编辑")
+                    Icon(
+                        Icons.Outlined.Edit,
+                        contentDescription = stringResource(R.string.edit_document),
+                    )
                 }
                 IconButton(onClick = onAppearance) {
-                    Icon(Icons.Outlined.TextFields, contentDescription = "排版")
+                    Icon(
+                        Icons.Outlined.TextFields,
+                        contentDescription = stringResource(R.string.adjust_typography),
+                    )
                 }
             }
         }
@@ -498,7 +539,7 @@ private fun DocumentSearchBar(
                 modifier = Modifier
                     .weight(1f)
                     .focusRequester(focusRequester),
-                placeholder = { Text("在文档中搜索") },
+                placeholder = { Text(stringResource(R.string.search_in_document)) },
                 singleLine = true,
                 leadingIcon = {
                     Icon(Icons.Outlined.Search, contentDescription = null)
@@ -507,9 +548,13 @@ private fun DocumentSearchBar(
                     if (query.isNotBlank()) {
                         Text(
                             text = if (result.total > 0) {
-                                "${result.active}/${result.total}"
+                                stringResource(
+                                    R.string.search_result_count,
+                                    result.active,
+                                    result.total,
+                                )
                             } else {
-                                "0/0"
+                                stringResource(R.string.search_result_count, 0, 0)
                             },
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -527,16 +572,25 @@ private fun DocumentSearchBar(
                 onClick = onPrevious,
                 enabled = result.total > 0,
             ) {
-                Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = "上一个结果")
+                Icon(
+                    Icons.Outlined.KeyboardArrowUp,
+                    contentDescription = stringResource(R.string.previous_search_result),
+                )
             }
             IconButton(
                 onClick = onNext,
                 enabled = result.total > 0,
             ) {
-                Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = "下一个结果")
+                Icon(
+                    Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = stringResource(R.string.next_search_result),
+                )
             }
             IconButton(onClick = onClose) {
-                Icon(Icons.Outlined.Close, contentDescription = "关闭搜索")
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = stringResource(R.string.close_search),
+                )
             }
         }
     }

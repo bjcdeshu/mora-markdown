@@ -7,14 +7,26 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Process
 import android.provider.OpenableColumns
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
+enum class DocumentFailure {
+    READ_FAILED,
+    WRITE_FAILED,
+    SAVE_AS_REQUIRED,
+}
+
+class DocumentAccessException(
+    val failure: DocumentFailure,
+    cause: Throwable? = null,
+) : Exception(null, cause)
+
 object DocumentRepository {
 
     data class LoadedDocument(
-        val name: String,
+        val name: String?,
         val content: String,
         val canWrite: Boolean,
     )
@@ -23,29 +35,49 @@ object DocumentRepository {
         context: Context,
         uri: Uri,
     ): LoadedDocument = withContext(Dispatchers.IO) {
-        val resolver = context.contentResolver
-        val content = resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
-            it.readText()
-        }?.removePrefix("\uFEFF") ?: error("文件没有提供可读取的内容")
+        try {
+            val resolver = context.contentResolver
+            val content = resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
+                it.readText()
+            }?.removePrefix("\uFEFF")
+                ?: throw DocumentAccessException(DocumentFailure.READ_FAILED)
 
-        LoadedDocument(
-            name = queryDisplayName(context, uri) ?: "文档.md",
-            content = content,
-            canWrite = canWrite(context, uri),
-        )
+            LoadedDocument(
+                name = queryDisplayName(context, uri),
+                content = content,
+                canWrite = canWrite(context, uri),
+            )
+        } catch (failure: DocumentAccessException) {
+            throw failure
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            throw DocumentAccessException(DocumentFailure.READ_FAILED, error)
+        }
     }
 
     suspend fun write(context: Context, uri: Uri, content: String) = withContext(Dispatchers.IO) {
-        val resolver = context.contentResolver
-        val stream = runCatching {
-            resolver.openOutputStream(uri, "rwt")
-        }.getOrNull()
-            ?: resolver.openOutputStream(uri, "wt")
-            ?: error("无法写入这个文件")
+        try {
+            val resolver = context.contentResolver
+            val stream = try {
+                resolver.openOutputStream(uri, "rwt")
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            } ?: resolver.openOutputStream(uri, "wt")
+                ?: throw DocumentAccessException(DocumentFailure.WRITE_FAILED)
 
-        stream.bufferedWriter(Charsets.UTF_8).use { writer ->
-            writer.write(content)
-            writer.flush()
+            stream.bufferedWriter(Charsets.UTF_8).use { writer ->
+                writer.write(content)
+                writer.flush()
+            }
+        } catch (failure: DocumentAccessException) {
+            throw failure
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            throw DocumentAccessException(DocumentFailure.WRITE_FAILED, error)
         }
     }
 

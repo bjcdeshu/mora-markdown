@@ -31,7 +31,7 @@ object RecentDocumentsRepository {
                 for (index in 0 until array.length()) {
                     val item = array.optJSONObject(index) ?: continue
                     val uri = item.optString("uri").takeIf(String::isNotBlank) ?: continue
-                    val name = item.optString("name").takeIf(String::isNotBlank) ?: "文档.md"
+                    val name = item.optString("name")
                     add(
                         RecentDocument(
                             uri = uri.toUri(),
@@ -54,11 +54,12 @@ object RecentDocumentsRepository {
     ): List<RecentDocument> {
         val existing = load(context)
         val previous = existing.firstOrNull { it.uri == uri }
+        val persistedName = name.takeIf(String::isNotBlank) ?: previous?.name.orEmpty()
         val updated = buildList {
             add(
                 RecentDocument(
                     uri = uri,
-                    name = name,
+                    name = persistedName,
                     lastOpenedAt = openedAt,
                     scrollY = previous?.scrollY ?: 0,
                 ),
