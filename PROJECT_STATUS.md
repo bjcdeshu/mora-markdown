@@ -4,9 +4,16 @@ Updated: 2026-07-24
 
 ## Current stage
 
-Mora v0.2.0 is the first public-release target and remains unreleased. This local-development baseline starts from `main` commit `92e5382`.
+Mora v0.2.0 is the first public-release target and remains unreleased. The stable local-development baseline was merged into `main` at commit `eaeba069e318fd2a9d1dedcf9eceb0e7401e66ed`.
 
-The current goal is a reproducible debug build and a passing pull-request CI run. A public release still requires explicit maintainer approval and real-device validation.
+The current phase is preparing recoverable long-term signing and a two-step release path:
+
+1. A manual workflow on `main` builds and verifies a signed candidate without creating a tag or Release.
+2. Only an explicitly approved `v*` tag can rebuild through the same verified path and create a draft pre-release.
+
+A public release still requires real-device validation of the manually dispatched candidate, explicit approval to tag, and a second validation of the exact draft attachment before publication.
+
+The first long-term RSA-2048 identity was generated outside the repository on 2026-07-24. The encrypted keystore copy and protected credential copy passed a local restore test, the `release-signing` GitHub Environment is restricted to `main` and `v*` refs with maintainer review, and an active tag ruleset blocks deletion or non-fast-forward updates of `v*` tags. The backup gate remains incomplete until the passwords have an independent password-manager or equivalent recovery record and every independent backup has passed a restore test.
 
 `docs/PRODUCT_SPEC.md` is an early exploration document, not the current implementation checklist. In particular, its CodeMirror and single-WebView proposal does not describe the current Compose source editor plus reader WebView architecture. Current code, `ROADMAP.md`, and this status document take precedence.
 
@@ -52,11 +59,12 @@ Last local verification on 2026-07-24 used Android Studio's bundled JBR 21 and p
 
 ## Release boundary
 
-The repository currently has no tag, GitHub Release, long-term signing key, or automatic release workflow. Until the maintainer approves the release phase:
+The repository still has no tag or GitHub Release. Release signing material must stay outside Git and be backed up independently; GitHub Secrets are delivery infrastructure, not a backup.
 
-- Build and share debug APKs only.
-- Do not generate or configure long-term signing material.
-- Do not create a tag or Release.
-- Do not merge the initialization pull request into `main`.
+- Pull-request and `main` CI build only Debug APKs and never receive signing secrets.
+- A signed candidate may be produced only from `main` through the protected release environment.
+- The candidate APK, certificate fingerprint, package name, version, and SDK levels must all be verified before upload.
+- Do not create a tag before the manually dispatched signed candidate passes the device matrix in `docs/RELEASING.md`.
+- A tag workflow rebuilds and creates a draft pre-release. Its APK may not be byte-for-byte identical to the earlier candidate; publishing remains blocked until the exact draft attachment repeats the device gate.
 
-Before the first public release, validate the candidate APK on representative real devices, configure recoverably backed-up long-term signing, review release notes, and obtain maintainer approval.
+The operational checklist and credential names are maintained in [docs/RELEASING.md](docs/RELEASING.md).

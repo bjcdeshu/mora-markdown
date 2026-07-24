@@ -1,0 +1,249 @@
+name: Signed Android release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signed-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-signed:
+    name: Build and verify signed APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release-signing
+    permissions:
+      contents: read
+
+    outputs:
+      artifact_name: ${{ steps.package.outputs.artifact_name }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Confirm release source
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            [[ "$GITHUB_REF" == "refs/heads/main" ]] || {
+              echo "Signed candidates may only be dispatched from main." >&2
+              exit 1
+            }
+            exit 0
+          fi
+
+          [[ "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] || {
+            echo "Release tag must use SemVer and start with v." >&2
+            exit 1
+          }
+
+          git fetch --no-tags origin main
+          TAG_COMMIT="$(git rev-list --max-count=1 "$GITHUB_REF_NAME")"
+          git merge-base --is-ancestor "$TAG_COMMIT" origin/main || {
+            echo "Release tags must point to a commit contained in main." >&2
+            exit 1
+          }
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          cache-disabled: true
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+
+      - name: Install stable Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Build signed release
+        id: package
+        shell: bash
+        env:
+          MORA_RELEASE_KEYSTORE_BASE64: ${{ secrets.MORA_RELEASE_KEYSTORE_BASE64 }}
+          MORA_RELEASE_STORE_PASSWORD: ${{ secrets.MORA_RELEASE_STORE_PASSWORD }}
+          MORA_RELEASE_KEY_ALIAS: ${{ secrets.MORA_RELEASE_KEY_ALIAS }}
+          MORA_RELEASE_KEY_PASSWORD: ${{ secrets.MORA_RELEASE_KEY_PASSWORD }}
+          MORA_RELEASE_CERT_SHA256: ${{ vars.MORA_RELEASE_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+
+          for variable in \
+            MORA_RELEASE_KEYSTORE_BASE64 \
+            MORA_RELEASE_STORE_PASSWORD \
+            MORA_RELEASE_KEY_ALIAS \
+            MORA_RELEASE_KEY_PASSWORD \
+            MORA_RELEASE_CERT_SHA256
+          do
+            [[ -n "${!variable:-}" ]] || {
+              echo "Required release setting $variable is missing." >&2
+              exit 1
+            }
+          done
+
+          KEYSTORE="$RUNNER_TEMP/mora-release.jks"
+          cleanup() {
+            rm -f "$KEYSTORE"
+          }
+          trap cleanup EXIT
+
+          printf '%s' "$MORA_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          export MORA_RELEASE_STORE_FILE="$KEYSTORE"
+
+          ./gradlew \
+            --no-configuration-cache \
+            --no-build-cache \
+            --no-daemon \
+            testDebugUnitTest lintRelease assembleRelease
+
+          APK="app/build/outputs/apk/release/app-release.apk"
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+
+          [[ -f "$APK" ]] || {
+            echo "Expected release APK was not produced." >&2
+            exit 1
+          }
+
+          BADGING="$("$AAPT" dump badging "$APK")"
+          PACKAGE_NAME="$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" <<< "$BADGING")"
+          VERSION_NAME="$(sed -n "s/^package:.*versionName='\([^']*\)'.*/\1/p" <<< "$BADGING")"
+          VERSION_CODE="$(sed -n "s/^package:.*versionCode='\([^']*\)'.*/\1/p" <<< "$BADGING")"
+          MIN_SDK="$(sed -n "s/^sdkVersion:'\([^']*\)'.*/\1/p" <<< "$BADGING")"
+          TARGET_SDK="$(sed -n "s/^targetSdkVersion:'\([^']*\)'.*/\1/p" <<< "$BADGING")"
+
+          [[ "$PACKAGE_NAME" == "de.unbow.mora" ]]
+          [[ "$VERSION_NAME" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]
+          [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]]
+          [[ "$MIN_SDK" == "26" ]]
+          [[ "$TARGET_SDK" == "36" ]]
+
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            [[ "${GITHUB_REF_NAME#v}" == "$VERSION_NAME" ]] || {
+              echo "Tag $GITHUB_REF_NAME does not match APK version $VERSION_NAME." >&2
+              exit 1
+            }
+
+            mapfile -t CHANGELOG_DATES < <(
+              awk -v prefix="## [$VERSION_NAME] - " \
+                'index($0, prefix) == 1 { print substr($0, length(prefix) + 1) }' \
+                CHANGELOG.md
+            )
+            [[
+              "${#CHANGELOG_DATES[@]}" -eq 1 &&
+              "${CHANGELOG_DATES[0]}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+            ]] || {
+              echo "CHANGELOG.md must contain a dated $VERSION_NAME heading before tagging." >&2
+              exit 1
+            }
+          fi
+
+          "$APKSIGNER" verify --verbose --print-certs -Werr "$APK"
+          ACTUAL_CERT_SHA256="$(
+            "$APKSIGNER" verify --print-certs "$APK" |
+              sed -n 's/^Signer #1 certificate SHA-256 digest: //p' |
+              tr '[:lower:]' '[:upper:]'
+          )"
+          EXPECTED_CERT_SHA256="$(
+            printf '%s' "$MORA_RELEASE_CERT_SHA256" |
+              tr -d '[:space:]:-' |
+              tr '[:lower:]' '[:upper:]'
+          )"
+          REGISTERED_CERT_SHA256="$(
+            tr -d '[:space:]:-' < docs/mora-release-certificate.sha256 |
+              tr '[:lower:]' '[:upper:]'
+          )"
+          PUBLIC_CERT_SHA256="$(
+            openssl x509 \
+              -in docs/mora-release-certificate.pem \
+              -outform DER |
+              sha256sum |
+              cut -d ' ' -f 1 |
+              tr '[:lower:]' '[:upper:]'
+          )"
+
+          [[ "$REGISTERED_CERT_SHA256" == "$EXPECTED_CERT_SHA256" ]] || {
+            echo "The protected GitHub fingerprint does not match the repository release record." >&2
+            exit 1
+          }
+          [[ "$PUBLIC_CERT_SHA256" == "$REGISTERED_CERT_SHA256" ]] || {
+            echo "The committed public certificate does not match its registered fingerprint." >&2
+            exit 1
+          }
+          [[ "$ACTUAL_CERT_SHA256" == "$REGISTERED_CERT_SHA256" ]] || {
+            echo "The APK signer does not match Mora's registered release certificate." >&2
+            exit 1
+          }
+
+          ARTIFACT_NAME="mora-v${VERSION_NAME}-signed"
+          APK_NAME="Mora-v${VERSION_NAME}.apk"
+          mkdir -p dist
+          cp "$APK" "dist/$APK_NAME"
+          (
+            cd dist
+            sha256sum "$APK_NAME" > "$APK_NAME.sha256"
+          )
+
+          echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload signed APK candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: |
+            dist/Mora-v*.apk
+            dist/Mora-v*.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  create-draft-release:
+    name: Create draft pre-release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build-signed
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download verified signed APK
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.build-signed.outputs.artifact_name }}
+          path: dist
+
+      - name: Verify downloaded artifact
+        working-directory: dist
+        run: sha256sum --check Mora-v*.apk.sha256
+
+      - name: Create draft pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/Mora-v*.apk \
+            dist/Mora-v*.apk.sha256 \
+            --draft \
+            --prerelease \
+            --generate-notes \
+            --title "Mora $GITHUB_REF_NAME" \
+            --verify-tag

@@ -3,6 +3,18 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+val releaseStoreFile = providers.environmentVariable("MORA_RELEASE_STORE_FILE")
+val releaseStorePassword = providers.environmentVariable("MORA_RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = providers.environmentVariable("MORA_RELEASE_KEY_ALIAS")
+val releaseKeyPassword = providers.environmentVariable("MORA_RELEASE_KEY_PASSWORD")
+
+val releaseSigningEnvironment = mapOf(
+    "MORA_RELEASE_STORE_FILE" to releaseStoreFile,
+    "MORA_RELEASE_STORE_PASSWORD" to releaseStorePassword,
+    "MORA_RELEASE_KEY_ALIAS" to releaseKeyAlias,
+    "MORA_RELEASE_KEY_PASSWORD" to releaseKeyPassword,
+)
+
 android {
     namespace = "de.unbow.mora"
     compileSdk = 36
@@ -19,6 +31,24 @@ android {
         compose = true
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = releaseStoreFile.orNull
+                ?.takeIf(String::isNotBlank)
+                ?.let(project::file)
+                ?: layout.buildDirectory.file("missing-mora-release-keystore.jks").get().asFile
+            storePassword = releaseStorePassword.orNull.orEmpty()
+            keyAlias = releaseKeyAlias.orNull.orEmpty()
+            keyPassword = releaseKeyPassword.orNull.orEmpty()
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -28,6 +58,34 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+}
+
+val verifyReleaseSigningEnvironment = tasks.register("verifyReleaseSigningEnvironment") {
+    group = "verification"
+    description = "Fails before a release build when Mora's signing environment is incomplete."
+    doNotTrackState("Release signing credentials must never be stored in the build cache.")
+
+    doLast {
+        val missingVariables = releaseSigningEnvironment
+            .filterValues { provider -> provider.orNull.isNullOrBlank() }
+            .keys
+
+        check(missingVariables.isEmpty()) {
+            "Release signing is not configured. Missing environment variables: " +
+                missingVariables.joinToString()
+        }
+
+        val configuredStoreFile = project.file(releaseStoreFile.get())
+        check(configuredStoreFile.isFile) {
+            "Release keystore does not exist at the configured MORA_RELEASE_STORE_FILE path."
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "preReleaseBuild" || name == "validateSigningRelease") {
+        dependsOn(verifyReleaseSigningEnvironment)
     }
 }
 

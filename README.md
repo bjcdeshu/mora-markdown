@@ -78,6 +78,7 @@ app/src/main/java/de/unbow/mora/
 The Android shell uses Jetpack Compose and Material 3. Reading uses CommonMark → HTML/CSS → WebView; editing uses a native Compose source editor.
 
 The current release baseline, validation gate, and release boundaries are recorded in [PROJECT_STATUS.md](PROJECT_STATUS.md).
+Maintainers should follow [docs/RELEASING.md](docs/RELEASING.md) for signed candidates, device validation, and publication.
 
 ## Contributing
 
