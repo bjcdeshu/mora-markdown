@@ -14,6 +14,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowInsetsControllerCompat
@@ -71,6 +72,11 @@ fun MoraTheme(
 
     SideEffect {
         val activity = view.context.findActivity() ?: return@SideEffect
+        syncLegacyNavigationBarColor(
+            activity = activity,
+            sdkInt = Build.VERSION.SDK_INT,
+            surfaceColor = colors.surface,
+        )
         WindowInsetsControllerCompat(activity.window, view).apply {
             isAppearanceLightStatusBars = !effectiveDark
             isAppearanceLightNavigationBars = !effectiveDark
@@ -111,6 +117,24 @@ internal fun applyDarkSurfaceStyle(
         surfaceContainerHighest = Color(0xFF1F1F1F),
         surfaceTint = Color.Transparent,
     )
+}
+
+internal fun legacyNavigationBarColor(
+    sdkInt: Int,
+    surfaceColor: Color,
+): Color? = surfaceColor.takeIf {
+    sdkInt in Build.VERSION_CODES.O..Build.VERSION_CODES.P
+}
+
+@Suppress("DEPRECATION")
+private fun syncLegacyNavigationBarColor(
+    activity: Activity,
+    sdkInt: Int,
+    surfaceColor: Color,
+) {
+    legacyNavigationBarColor(sdkInt, surfaceColor)?.let { color ->
+        activity.window.navigationBarColor = color.toArgb()
+    }
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {

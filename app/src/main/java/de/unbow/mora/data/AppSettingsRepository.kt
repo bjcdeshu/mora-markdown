@@ -2,6 +2,7 @@ package de.unbow.mora.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
 enum class ThemeMode {
     SYSTEM,
@@ -53,11 +54,11 @@ class AppSettingsRepository internal constructor(
     }
 
     fun save(settings: AppSettings) {
-        preferences.edit()
-            .putString(themeModeKey, settings.themeMode.name)
-            .putString(darkSurfaceStyleKey, settings.darkSurfaceStyle.name)
-            .putString(launcherIconKey, settings.launcherIcon.name)
-            .apply()
+        preferences.edit {
+            putString(themeModeKey, settings.themeMode.name)
+            putString(darkSurfaceStyleKey, settings.darkSurfaceStyle.name)
+            putString(launcherIconKey, settings.launcherIcon.name)
+        }
     }
 
     private companion object {

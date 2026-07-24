@@ -7,6 +7,7 @@ import de.unbow.mora.data.DarkSurfaceStyle
 import de.unbow.mora.data.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -70,5 +71,22 @@ class MoraThemeTest {
         assertTrue(resolveEffectiveDark(ThemeMode.SYSTEM, systemDark = true))
         assertFalse(resolveEffectiveDark(ThemeMode.LIGHT, systemDark = true))
         assertTrue(resolveEffectiveDark(ThemeMode.DARK, systemDark = false))
+    }
+
+    @Test
+    fun legacyNavigationBarUsesTheEffectiveSurfaceOnlyThroughAndroidP() {
+        val effectiveSurface = Color(0xFF123456)
+
+        assertNull(legacyNavigationBarColor(sdkInt = 25, surfaceColor = effectiveSurface))
+        assertEquals(
+            effectiveSurface,
+            legacyNavigationBarColor(sdkInt = 26, surfaceColor = effectiveSurface),
+        )
+        assertEquals(
+            effectiveSurface,
+            legacyNavigationBarColor(sdkInt = 28, surfaceColor = effectiveSurface),
+        )
+        assertNull(legacyNavigationBarColor(sdkInt = 29, surfaceColor = effectiveSurface))
+        assertNull(legacyNavigationBarColor(sdkInt = 36, surfaceColor = effectiveSurface))
     }
 }
