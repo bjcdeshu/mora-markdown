@@ -1,19 +1,27 @@
 package de.unbow.mora.ui
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.Intent
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.view.animation.LinearInterpolator
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -29,6 +37,25 @@ internal data class SearchResult(
     val total: Int = 0,
 )
 
+internal data class ReaderPositionMarker(
+    val progress: Float = 0f,
+    val isScrollable: Boolean = false,
+)
+
+internal fun calculateReaderPositionMarker(
+    offset: Int,
+    range: Int,
+    extent: Int,
+): ReaderPositionMarker {
+    if (range <= 0 || extent <= 0 || range <= extent) return ReaderPositionMarker()
+
+    val maximumOffset = range - extent
+    return ReaderPositionMarker(
+        progress = offset.coerceIn(0, maximumOffset).toFloat() / maximumOffset,
+        isScrollable = true,
+    )
+}
+
 @Composable
 internal fun MarkdownReader(
     documentKey: Long,
@@ -43,6 +70,9 @@ internal fun MarkdownReader(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val readingPositionMarkerColor = MaterialTheme.colorScheme.onSurfaceVariant
+        .copy(alpha = 0.56f)
+        .toArgb()
     val webView = remember(context) {
         MoraReaderWebView(context).apply {
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
@@ -65,6 +95,7 @@ internal fun MarkdownReader(
                 .onSuccess { onPositionChanged(it, position) }
         }
         webView.onToolbarVisibilityChanged = onToolbarVisibilityChanged
+        webView.readingPositionMarkerColor = readingPositionMarkerColor
         controller.updateCallbacks(
             onCurrentHeadingChanged = onCurrentHeadingChanged,
             onSearchResult = onSearchResult,
@@ -99,6 +130,7 @@ internal fun MarkdownReader(
             )
             if (view.pageKey != nextPageKey) {
                 view.publishPosition()
+                view.hideReadingPositionMarker()
                 val sameDocument = view.pageKey?.documentKey == documentKey
                 view.pendingRestoreY = if (sameDocument) view.scrollY else initialScrollY
                 view.pageKey = nextPageKey
@@ -231,11 +263,37 @@ private class MoraReaderWebView(context: Context) : WebView(context) {
     var pendingRestoreY: Int = 0
     var onPositionChanged: (String, Int) -> Unit = { _, _ -> }
     var onToolbarVisibilityChanged: (Boolean) -> Unit = {}
+    var readingPositionMarkerColor: Int = Color.TRANSPARENT
+        set(value) {
+            field = value
+            invalidate()
+        }
     var controller: MarkdownReaderController? = null
     var suppressToolbarChanges: Boolean = false
 
     private val positionHandler = Handler(Looper.getMainLooper())
     private val positionRunnable = Runnable { publishPosition() }
+    private val readingPositionMarkerPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val readingPositionMarkerBounds = RectF()
+    private val markerWidth = (16f * resources.displayMetrics.density)
+    private val markerHeight = (2f * resources.displayMetrics.density)
+    private val markerEndMargin = (4f * resources.displayMetrics.density)
+    private val markerVerticalMargin = (12f * resources.displayMetrics.density)
+    private var readingPositionMarker = ReaderPositionMarker()
+    private var readingPositionMarkerAlpha = 0f
+    private val markerFadeAnimator = ValueAnimator.ofFloat(1f, 0f).apply {
+        duration = 180
+        interpolator = LinearInterpolator()
+        addUpdateListener { animator ->
+            readingPositionMarkerAlpha = animator.animatedValue as Float
+            postInvalidateOnAnimation()
+        }
+    }
+    private val markerFadeRunnable = Runnable {
+        markerFadeAnimator.cancel()
+        markerFadeAnimator.setFloatValues(readingPositionMarkerAlpha, 0f)
+        markerFadeAnimator.start()
+    }
     private val hideThreshold = (22f * resources.displayMetrics.density).roundToInt()
     private val showThreshold = (14f * resources.displayMetrics.density).roundToInt()
     private var directionDistance = 0
@@ -270,13 +328,98 @@ private class MoraReaderWebView(context: Context) : WebView(context) {
 
         positionHandler.removeCallbacks(positionRunnable)
         positionHandler.postDelayed(positionRunnable, 280)
+        showReadingPositionMarker()
         controller?.requestCurrentHeading()
+    }
+
+    override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight)
+        postOnAnimation { showReadingPositionMarker() }
+    }
+
+    override fun onDrawForeground(canvas: Canvas) {
+        super.onDrawForeground(canvas)
+        if (!readingPositionMarker.isScrollable || readingPositionMarkerAlpha <= 0f) return
+
+        updateReadingPositionMarkerBounds()
+        readingPositionMarkerPaint.color = readingPositionMarkerColor
+        readingPositionMarkerPaint.alpha =
+            (Color.alpha(readingPositionMarkerColor) * readingPositionMarkerAlpha)
+                .roundToInt()
+                .coerceIn(0, 255)
+        canvas.drawRoundRect(
+            readingPositionMarkerBounds,
+            markerHeight / 2f,
+            markerHeight / 2f,
+            readingPositionMarkerPaint,
+        )
+    }
+
+    override fun onDetachedFromWindow() {
+        positionHandler.removeCallbacks(positionRunnable)
+        removeCallbacks(markerFadeRunnable)
+        markerFadeAnimator.cancel()
+        super.onDetachedFromWindow()
     }
 
     fun publishPosition() {
         positionHandler.removeCallbacks(positionRunnable)
         val documentUri = pageKey?.documentUri ?: return
         onPositionChanged(documentUri, scrollY)
+    }
+
+    fun showReadingPositionMarker() {
+        readingPositionMarker = calculateReaderPositionMarker(
+            offset = computeVerticalScrollOffset(),
+            range = computeVerticalScrollRange(),
+            extent = computeVerticalScrollExtent(),
+        )
+        if (!readingPositionMarker.isScrollable) {
+            hideReadingPositionMarker()
+            return
+        }
+
+        markerFadeAnimator.cancel()
+        removeCallbacks(markerFadeRunnable)
+        readingPositionMarkerAlpha = 1f
+        postDelayed(markerFadeRunnable, 700)
+        postInvalidateOnAnimation()
+    }
+
+    fun hideReadingPositionMarker() {
+        removeCallbacks(markerFadeRunnable)
+        markerFadeAnimator.cancel()
+        readingPositionMarker = ReaderPositionMarker()
+        readingPositionMarkerAlpha = 0f
+        invalidate()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun updateReadingPositionMarkerBounds() {
+        val windowInsets = rootWindowInsets
+        val topInset = windowInsets?.systemWindowInsetTop ?: 0
+        val rightInset = windowInsets?.systemWindowInsetRight ?: 0
+        val bottomInset = windowInsets?.systemWindowInsetBottom ?: 0
+        val viewportTop = scrollY.toFloat()
+        val viewportLeft = scrollX.toFloat()
+        val trackTop = (viewportTop + topInset + markerVerticalMargin)
+            .coerceAtMost(
+                (viewportTop + height - markerHeight).coerceAtLeast(viewportTop),
+            )
+        val trackBottom =
+            (viewportTop + height - bottomInset - markerVerticalMargin - markerHeight)
+            .coerceAtLeast(trackTop)
+        val markerTop = trackTop +
+            (trackBottom - trackTop) * readingPositionMarker.progress.coerceIn(0f, 1f)
+        val markerRight = (viewportLeft + width - rightInset - markerEndMargin)
+            .coerceAtLeast(viewportLeft + markerWidth)
+
+        readingPositionMarkerBounds.set(
+            markerRight - markerWidth,
+            markerTop,
+            markerRight,
+            markerTop + markerHeight,
+        )
     }
 }
 
@@ -292,6 +435,7 @@ private class MoraReaderWebViewClient(
             view.scrollTo(0, restoreY)
             readerView.onToolbarVisibilityChanged(true)
             readerView.controller?.requestCurrentHeading()
+            readerView.postOnAnimation { readerView.showReadingPositionMarker() }
             readerView.postDelayed(
                 { readerView.suppressToolbarChanges = false },
                 100,
