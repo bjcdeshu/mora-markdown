@@ -159,7 +159,7 @@ internal fun DocumentScreen(
         !loading &&
         renderedRequest != requestedRender
     val renderedMarkdown = cachedRenderedMarkdown
-    val readerController = remember { MarkdownReaderController() }
+    val readerController = remember(documentKey) { MarkdownReaderController() }
     var toolbarVisible by rememberSaveable(documentKey) { mutableStateOf(true) }
     var showTableOfContents by rememberSaveable(documentKey) { mutableStateOf(false) }
     var showSearch by rememberSaveable(documentKey) { mutableStateOf(false) }
@@ -342,7 +342,6 @@ internal fun DocumentScreen(
                         result = searchResult,
                         onQueryChanged = { query ->
                             searchQuery = query
-                            readerController.search(query)
                         },
                         onPrevious = { readerController.findNext(forward = false) },
                         onNext = { readerController.findNext(forward = true) },

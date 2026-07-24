@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -49,6 +50,25 @@ import de.unbow.mora.model.displayDocumentName
 import de.unbow.mora.ui.theme.LocalMoraIsDark
 import kotlinx.coroutines.launch
 import java.util.Locale
+
+internal data class ReaderScrollSession(
+    val sessionId: Long = Long.MIN_VALUE,
+    val scrollY: Int = 0,
+)
+
+internal fun resolveReaderScrollSession(
+    current: ReaderScrollSession,
+    hasDocument: Boolean,
+    sessionId: Long,
+    initialScrollY: Int,
+): ReaderScrollSession = when {
+    !hasDocument -> ReaderScrollSession()
+    current.sessionId == sessionId -> current
+    else -> ReaderScrollSession(
+        sessionId = sessionId,
+        scrollY = initialScrollY.coerceAtLeast(0),
+    )
+}
 
 @Composable
 fun MoraApp(
@@ -94,6 +114,9 @@ fun MoraApp(
     }
     var horizontalPadding by rememberSaveable {
         mutableFloatStateOf(storedReaderPreferences.horizontalPaddingPx)
+    }
+    var readerScrollSessionId by rememberSaveable {
+        mutableLongStateOf(Long.MIN_VALUE)
     }
     var readerScrollY by rememberSaveable { mutableIntStateOf(0) }
     var predictiveBackTransform by remember {
@@ -161,10 +184,18 @@ fun MoraApp(
         }
     }
 
-    LaunchedEffect(state.contentVersion, state.isLoading) {
-        if (state.hasDocument && !state.isLoading) {
-            readerScrollY = state.initialScrollY
-        }
+    LaunchedEffect(state.hasDocument, state.sessionId, state.initialScrollY) {
+        val resolved = resolveReaderScrollSession(
+            current = ReaderScrollSession(
+                sessionId = readerScrollSessionId,
+                scrollY = readerScrollY,
+            ),
+            hasDocument = state.hasDocument,
+            sessionId = state.sessionId,
+            initialScrollY = state.initialScrollY,
+        )
+        readerScrollSessionId = resolved.sessionId
+        readerScrollY = resolved.scrollY
     }
 
     LaunchedEffect(state.hasDocument) {
@@ -345,6 +376,7 @@ fun MoraApp(
                     snackbarHostState = snackbarHostState,
                     onReaderPositionChanged = { uri, position ->
                         if (uri == markdownViewModel.uiState.uri) {
+                            readerScrollSessionId = markdownViewModel.uiState.sessionId
                             readerScrollY = position
                         }
                         markdownViewModel.updateReadingPosition(context, uri, position)

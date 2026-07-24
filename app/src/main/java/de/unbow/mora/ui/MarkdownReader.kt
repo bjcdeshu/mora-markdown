@@ -57,6 +57,22 @@ internal data class SearchResult(
     val total: Int = 0,
 )
 
+internal class PendingReaderSearch {
+    private var query: String? = null
+
+    fun update(query: String) {
+        this.query = query
+    }
+
+    fun clear() {
+        query = null
+    }
+
+    fun replay(search: (String) -> Unit) {
+        query?.let(search)
+    }
+}
+
 internal data class FloatRect(
     val left: Float = 0f,
     val top: Float = 0f,
@@ -311,8 +327,15 @@ internal fun MarkdownReader(
         )
     }
 
-    DisposableEffect(webView, lifecycleOwner) {
+    DisposableEffect(webView, controller) {
         controller.attach(webView)
+
+        onDispose {
+            controller.detach(webView)
+        }
+    }
+
+    DisposableEffect(webView, lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
                 webView.publishPosition()
@@ -323,7 +346,7 @@ internal fun MarkdownReader(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             webView.publishPosition()
-            controller.detach(webView)
+            webView.controller?.detach(webView)
             webView.destroy()
         }
     }
@@ -360,6 +383,7 @@ internal class MarkdownReaderController {
     private var webView: WebView? = null
     private var onCurrentHeadingChanged: (String?) -> Unit = {}
     private var onSearchResult: (SearchResult) -> Unit = {}
+    private val pendingSearch = PendingReaderSearch()
     private val headingHandler = Handler(Looper.getMainLooper())
     private val headingRunnable = Runnable { evaluateCurrentHeading() }
 
@@ -376,6 +400,7 @@ internal class MarkdownReaderController {
                 )
             }
         }
+        restoreSearch()
     }
 
     fun detach(view: WebView) {
@@ -409,6 +434,11 @@ internal class MarkdownReaderController {
     }
 
     fun search(query: String) {
+        pendingSearch.update(query)
+        applySearch(query)
+    }
+
+    private fun applySearch(query: String) {
         val view = webView ?: return
         if (query.isBlank()) {
             view.clearMatches()
@@ -423,8 +453,13 @@ internal class MarkdownReaderController {
     }
 
     fun clearSearch() {
+        pendingSearch.clear()
         webView?.clearMatches()
         onSearchResult(SearchResult())
+    }
+
+    fun restoreSearch() {
+        pendingSearch.replay(::applySearch)
     }
 
     fun publishPosition() {
@@ -895,6 +930,7 @@ private class MoraReaderWebViewClient(
             view.scrollTo(0, restoreY)
             readerView.onToolbarVisibilityChanged(true)
             readerView.controller?.requestCurrentHeading()
+            readerView.controller?.restoreSearch()
             readerView.postDelayed(
                 { readerView.completePageRestore(generation) },
                 100,
