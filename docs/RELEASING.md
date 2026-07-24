@@ -2,11 +2,29 @@
 
 Mora uses one long-term Android app-signing key for every public APK. Losing that key or its passwords prevents existing users from installing future GitHub builds as updates. Treat this document as a release gate, not as a convenience checklist.
 
-The first public artifact is the signed `v0.2.0-rc.1` release candidate. It may be
-published as an explicitly labeled GitHub Pre-release after the automated build,
-signature, metadata, and checksum gates pass. The stable `v0.2.0` release remains
-blocked until the maintainer approves the exact signed asset after real-device
-testing.
+The first stable target is `v0.3.0`. Stable v0.2.0 was superseded before
+publication; signed `v0.2.0-rc.1` remains a historical public Pre-release.
+v0.3.0 will not use a public release candidate. Its protected `main` candidate
+and its separately rebuilt hidden Draft attachment must each pass the complete
+exact-asset gate before the same Draft is made public as stable.
+
+## v0.3.0 publication path
+
+1. Merge only a reviewed pull request with green CI, then confirm `main` CI passes
+   on the resulting commit.
+2. Manually run **Signed Android release** from that exact `main` commit. Download
+   its private Actions APK and SHA-256 sidecar, independently verify identity, and
+   run the complete real-device matrix on that exact APK.
+3. Record the commit, APK SHA-256, devices, Android versions, file providers, and
+   results. An explicit maintainer approval is required before tagging.
+4. Create annotated stable tag `v0.3.0` on the same tested commit. The tag workflow
+   rebuilds and creates a hidden Draft Pre-release; it does not publish it.
+5. Download that exact Draft APK and sidecar. Repeat all identity checks and the
+   complete real-device matrix because this is a new build. Record a second
+   explicit maintainer approval.
+6. Edit that same GitHub Release to `draft=false`, `prerelease=false`, and latest.
+   Do not move the tag or replace either attachment. Redownload the public APK and
+   confirm its SHA-256 is identical to the approved Draft APK.
 
 ## Safety model
 
@@ -75,7 +93,9 @@ The package must be `de.unbow.mora`, `minSdk` must be 26, `targetSdk` must be 36
 
 ## Signed candidate
 
-After release infrastructure is on `main`, run **Signed Android release** manually from the `main` branch.
+After release infrastructure and the intended version are on `main`, run
+**Signed Android release** manually from the exact `main` commit selected for the
+candidate.
 
 The workflow:
 
@@ -85,9 +105,14 @@ The workflow:
 4. uploads an APK and SHA-256 sidecar as a 30-day Actions artifact;
 5. creates no tag and no GitHub Release.
 
-Download that artifact and record its SHA-256 before device testing.
+Download that artifact and its sidecar, verify them independently, and record its
+SHA-256 before device testing. For v0.3.0, this protected Actions artifact is the
+first exact-asset gate and must complete the full matrix before any tag is created.
 
 ## Public release candidate
+
+This optional path is retained for a future version that explicitly needs public
+testing. It is not used for v0.3.0.
 
 A release-candidate tag uses `v<major>.<minor>.<patch>-rc.<number>`. Before pushing
 one:
@@ -118,7 +143,22 @@ Test the exact downloaded candidate, not a later local rebuild.
 - A current Android version: repeat the same flow.
 - Open a `.md` file from a file manager and from an external sharing app while Mora is both closed and already running.
 - Verify read-only input leads to Save As rather than silent failure.
-- Verify recent documents, reading-position restoration, table of contents, search, dark mode, and an orientation change.
+- Verify recent documents, reading-position restoration, table of contents,
+  search, and an orientation change.
+- On a long document, verify the right-edge progress thumb remains subtle while
+  idle, becomes visible while scrolling, drags without jumping, and reaches the
+  beginning and end.
+- Verify English and Simplified Chinese follow the selected device language. On
+  Android 13+, also switch Mora through the system per-app language page and
+  confirm document text and filenames are unchanged.
+- Verify system, light, dark, and pure-black appearance behavior, including
+  readable status/navigation-bar icons.
+- Switch among Indigo, Pine, and Night launcher palettes. Confirm Mora remains
+  launchable after every switch and after process restart; allow for normal
+  launcher cache refresh.
+- On a predictive-Back-capable current Android device, verify the clean document
+  reveals Home during the gesture, cancellation keeps the document open, search
+  closes first, and unsaved edits still require discard confirmation.
 - Confirm a Debug-signed preview must be uninstalled before the first Release-signed install.
 - Reinstall the same candidate over itself without losing access to recent documents.
 - Check the final APK SHA-256 and certificate fingerprint again after download.
@@ -130,7 +170,8 @@ APK SHA-256 in the release pull request or the release-tracking issue.
 
 Before tagging a stable version:
 
-1. confirm the exact release-candidate asset passed the real-device gate;
+1. confirm the exact protected `main` candidate passed the complete identity and
+   real-device gate;
 2. increment `versionCode` for every distributed build;
 3. make `versionName` equal the tag without its leading `v`;
 4. replace `Unreleased` in the matching `CHANGELOG.md` heading with the release date;
@@ -144,6 +185,11 @@ tag, a stable tag creates a draft pre-release with the verified APK and checksum
 it does not make that draft public.
 
 The tag workflow rebuilds the APK, so its attachment is not assumed to be byte-for-byte identical to the manually dispatched candidate. Download the exact draft attachment, independently repeat the checksum, signer, and package-metadata checks, and run the complete real-device gate again. Publish the draft only after that exact APK passes and the maintainer explicitly approves publication.
+
+Stable publication means editing that same Release to remove both Draft and
+Pre-release status and mark it latest. Do not move the tag, replace the APK, or
+replace its sidecar after approval. Redownload the public APK once more and verify
+that its SHA-256 still matches the approved Draft attachment.
 
 ## Recovery and rotation
 

@@ -8,13 +8,14 @@ Mora is built around one simple workflow: open a standard Markdown file, read it
 
 The project is intentionally document-first rather than vault-first. There is no account, proprietary document format, telemetry, or cloud service.
 
-> Mora v0.2.0 is the first stable release target. Signed `-rc` builds are public
-> test candidates and may still be awaiting the complete real-device matrix;
-> please report device- and file-provider-specific issues through GitHub Issues.
+> Mora v0.3.0 is the first stable release target. The planned stable v0.2.0 was
+> superseded before publication; `v0.2.0-rc.1` remains a historical Pre-release.
+> Please report device- and file-provider-specific issues through GitHub Issues.
 
 ## Highlights
 
-- Immersive reading with a toolbar that follows scroll direction
+- Immersive reading with a toolbar that follows scroll direction and a subtle,
+  draggable right-edge progress thumb
 - Tuned typography with adjustable font size, line height, and page margins
 - Table of contents for H1–H3 headings, current-section highlighting, and in-document search
 - Recent documents and per-document reading-position restoration
@@ -22,7 +23,13 @@ The project is intentionally document-first rather than vault-first. There is no
 - External opening through Android `VIEW`, `EDIT`, and `SEND` intents
 - Basic Markdown source editing, a mobile formatting toolbar, save, and Save As
 - CommonMark plus tables, strikethrough, and task lists
-- Material 3, dynamic color, dark mode, and Android 8.0+
+- English and Simplified Chinese UI that follows the device language, with an
+  Android 13+ per-app language shortcut
+- System, light, and dark appearance modes, plus an optional pure-black dark
+  surface
+- Three user-selectable Fine Frame launcher palettes
+- Predictive document-to-Home back navigation on supported Android versions
+- Material 3, dynamic color, and Android 8.0+
 
 ## What Mora is not
 
@@ -30,10 +37,10 @@ Mora is not trying to become a knowledge workspace. Vaults, backlinks, graph vie
 
 ## Download
 
-Signed installable APKs and their SHA-256 sidecars are attached to this
-repository's [GitHub Releases](../../releases). Read the release label and notes:
-Pre-release candidates are intended for testing, while a stable release has passed
-the documented exact-asset device gate.
+Published signed APKs and their SHA-256 sidecars are attached to this repository's
+[GitHub Releases](../../releases). Read the release label and notes: a Pre-release
+is a test candidate, while a stable release has passed the documented exact-asset
+device gates.
 
 ## Build from source
 
