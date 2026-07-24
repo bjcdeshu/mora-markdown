@@ -3,13 +3,13 @@ package de.unbow.mora.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,10 +22,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.unbow.mora.IncomingDocumentRequest
 import de.unbow.mora.R
@@ -89,6 +96,9 @@ fun MoraApp(
         mutableFloatStateOf(storedReaderPreferences.horizontalPaddingPx)
     }
     var readerScrollY by rememberSaveable { mutableIntStateOf(0) }
+    var predictiveBackTransform by remember {
+        mutableStateOf(PredictiveDocumentBackTransform.Identity)
+    }
 
     fun currentPreferences() = ReaderPreferences(
         fontSizePx = fontSize,
@@ -161,7 +171,12 @@ fun MoraApp(
             showAppSettings = false
         } else {
             showReaderAppearance = false
+            predictiveBackTransform = PredictiveDocumentBackTransform.Identity
         }
+    }
+
+    LaunchedEffect(state.sessionId) {
+        predictiveBackTransform = PredictiveDocumentBackTransform.Identity
     }
 
     val localizedError = when (val error = state.error) {
@@ -225,47 +240,57 @@ fun MoraApp(
         }
     }
 
-    AnimatedContent(
-        targetState = state.hasDocument,
-        transitionSpec = { fadeIn() togetherWith fadeOut() },
-        label = "home-document",
-    ) { hasDocument ->
-        if (!hasDocument) {
-            HomeScreen(
-                recentDocuments = markdownViewModel.recentDocuments,
-                snackbarHostState = snackbarHostState,
-                onOpenFile = {
-                    openDocumentLauncher.launch(
-                        arrayOf(
-                            "text/markdown",
-                            "text/x-markdown",
-                            "application/x-markdown",
-                            "text/plain",
-                            "application/octet-stream",
-                        ),
-                    )
-                },
-                onNewDraft = {
-                    showAppSettings = false
-                    readerScrollY = 0
-                    mode = DocumentMode.EDITING
-                    markdownViewModel.newDraft(
-                        name = untitledDocumentFilename,
-                        initialContent = newDraftTemplate,
-                    )
-                },
-                onOpenRecent = { document ->
-                    openDocument(document.uri)
-                },
-                onRemoveRecent = { document ->
-                    markdownViewModel.removeRecent(context, document)
-                },
-                onSettings = {
-                    showReaderAppearance = false
-                    showAppSettings = true
-                },
-            )
-        } else {
+    val density = LocalDensity.current
+    val maximumBackTranslation = with(density) { 24.dp.toPx() }
+    val maximumBackCornerRadius = with(density) { 28.dp.toPx() }
+    val documentShape = RoundedCornerShape(
+        with(density) { predictiveBackTransform.cornerRadius.toDp() },
+    )
+
+    Box(Modifier.fillMaxSize()) {
+        HomeScreen(
+            modifier = if (state.hasDocument) {
+                Modifier.clearAndSetSemantics {}
+            } else {
+                Modifier
+            },
+            recentDocuments = markdownViewModel.recentDocuments,
+            snackbarHostState = snackbarHostState,
+            showSnackbarHost = !state.hasDocument,
+            interactive = !state.hasDocument,
+            onOpenFile = {
+                openDocumentLauncher.launch(
+                    arrayOf(
+                        "text/markdown",
+                        "text/x-markdown",
+                        "application/x-markdown",
+                        "text/plain",
+                        "application/octet-stream",
+                    ),
+                )
+            },
+            onNewDraft = {
+                showAppSettings = false
+                readerScrollY = 0
+                mode = DocumentMode.EDITING
+                markdownViewModel.newDraft(
+                    name = untitledDocumentFilename,
+                    initialContent = newDraftTemplate,
+                )
+            },
+            onOpenRecent = { document ->
+                openDocument(document.uri)
+            },
+            onRemoveRecent = { document ->
+                markdownViewModel.removeRecent(context, document)
+            },
+            onSettings = {
+                showReaderAppearance = false
+                showAppSettings = true
+            },
+        )
+
+        if (state.hasDocument) {
             var editorValue by remember(state.contentVersion) {
                 mutableStateOf(TextFieldValue(state.content))
             }
@@ -282,61 +307,116 @@ fun MoraApp(
                 )
             }
 
-            DocumentScreen(
-                documentKey = state.sessionId,
-                documentUri = state.uri,
-                name = displayedDocumentName,
-                dirty = state.isDirty,
-                loading = state.isLoading,
-                markdown = state.content,
-                editorValue = editorValue,
-                mode = mode,
-                palette = palette,
-                preferences = currentPreferences(),
-                effectiveDark = effectiveDark,
-                untitledHeading = untitledHeading,
-                readerScrollY = readerScrollY,
-                snackbarHostState = snackbarHostState,
-                onReaderPositionChanged = { uri, position ->
-                    if (uri == markdownViewModel.uiState.uri) {
-                        readerScrollY = position
-                    }
-                    markdownViewModel.updateReadingPosition(context, uri, position)
-                },
-                onModeChanged = { newMode ->
-                    mode = newMode
-                    if (
-                        newMode == DocumentMode.EDITING &&
-                        state.uri != null &&
-                        !state.canWrite
-                    ) {
-                        scope.launch {
-                            snackbarHostState.showSnackbar(readOnlyNotice)
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(state.sessionId) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                awaitPointerEvent(PointerEventPass.Final)
+                                    .changes
+                                    .forEach { it.consume() }
+                            }
                         }
                     }
-                },
-                onBack = closeDocument,
-                onAppearance = {
-                    showAppSettings = false
-                    showReaderAppearance = true
-                },
-                onSave = {
-                    if (state.uri == null || !state.canWrite) {
-                        createDocument.launch(
-                            normalizedMarkdownName(
-                                displayedDocumentName,
-                                untitledFilenameBase,
-                            ),
-                        )
-                    } else {
-                        markdownViewModel.save(context, notifySave)
-                    }
-                },
-                onEditorChanged = { value ->
-                    editorValue = value
-                    markdownViewModel.updateContent(value.text)
-                },
-            )
+                    .graphicsLayer {
+                        scaleX = predictiveBackTransform.scale
+                        scaleY = predictiveBackTransform.scale
+                        translationX = predictiveBackTransform.translation
+                    },
+                shape = documentShape,
+                color = colors.surface,
+            ) {
+                DocumentScreen(
+                    documentKey = state.sessionId,
+                    documentUri = state.uri,
+                    name = displayedDocumentName,
+                    dirty = state.isDirty,
+                    loading = state.isLoading,
+                    markdown = state.content,
+                    editorValue = editorValue,
+                    mode = mode,
+                    palette = palette,
+                    preferences = currentPreferences(),
+                    effectiveDark = effectiveDark,
+                    untitledHeading = untitledHeading,
+                    readerScrollY = readerScrollY,
+                    snackbarHostState = snackbarHostState,
+                    onReaderPositionChanged = { uri, position ->
+                        if (uri == markdownViewModel.uiState.uri) {
+                            readerScrollY = position
+                        }
+                        markdownViewModel.updateReadingPosition(context, uri, position)
+                    },
+                    onModeChanged = { newMode ->
+                        mode = newMode
+                        if (
+                            newMode == DocumentMode.EDITING &&
+                            state.uri != null &&
+                            !state.canWrite
+                        ) {
+                            scope.launch {
+                                snackbarHostState.showSnackbar(readOnlyNotice)
+                            }
+                        }
+                    },
+                    onBack = closeDocument,
+                    predictiveBackBlocked = showReaderAppearance ||
+                        showDiscardDialog ||
+                        pendingIncomingRequest != null,
+                    onPredictiveBackProgress = { gestureKey, progress, swipeEdge ->
+                        if (markdownViewModel.uiState.sessionId == gestureKey) {
+                            predictiveBackTransform = calculatePredictiveDocumentBackTransform(
+                                progress = progress,
+                                swipeEdge = swipeEdge,
+                                maximumTranslation = maximumBackTranslation,
+                                maximumCornerRadius = maximumBackCornerRadius,
+                            )
+                        }
+                    },
+                    onPredictiveBackCancelled = { gestureKey ->
+                        if (markdownViewModel.uiState.sessionId == gestureKey) {
+                            predictiveBackTransform = PredictiveDocumentBackTransform.Identity
+                        }
+                    },
+                    onPredictiveBackCompleted = { gestureKey ->
+                        val currentState = markdownViewModel.uiState
+                        if (
+                            currentState.hasDocument &&
+                            currentState.sessionId == gestureKey &&
+                            !currentState.isDirty
+                        ) {
+                            showReaderAppearance = false
+                            showAppSettings = false
+                            readerScrollY = 0
+                            markdownViewModel.closeDocument()
+                        } else {
+                            predictiveBackTransform =
+                                PredictiveDocumentBackTransform.Identity
+                        }
+                    },
+                    onAppearance = {
+                        showAppSettings = false
+                        showReaderAppearance = true
+                    },
+                    onSave = {
+                        if (state.uri == null || !state.canWrite) {
+                            createDocument.launch(
+                                normalizedMarkdownName(
+                                    displayedDocumentName,
+                                    untitledFilenameBase,
+                                ),
+                            )
+                        } else {
+                            markdownViewModel.save(context, notifySave)
+                        }
+                    },
+                    onEditorChanged = { value ->
+                        editorValue = value
+                        markdownViewModel.updateContent(value.text)
+                    },
+                )
+            }
         }
     }
 

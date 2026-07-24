@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -54,8 +55,11 @@ import java.util.concurrent.TimeUnit
 
 @Composable
 internal fun HomeScreen(
+    modifier: Modifier = Modifier,
     recentDocuments: List<RecentDocument>,
     snackbarHostState: SnackbarHostState,
+    showSnackbarHost: Boolean = true,
+    interactive: Boolean = true,
     onOpenFile: () -> Unit,
     onNewDraft: () -> Unit,
     onOpenRecent: (RecentDocument) -> Unit,
@@ -63,7 +67,12 @@ internal fun HomeScreen(
     onSettings: () -> Unit,
 ) {
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier,
+        snackbarHost = {
+            if (showSnackbarHost) {
+                SnackbarHost(snackbarHostState)
+            }
+        },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { innerPadding ->
         LazyColumn(
@@ -105,7 +114,10 @@ internal fun HomeScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    IconButton(onClick = onSettings) {
+                    IconButton(
+                        onClick = { if (interactive) onSettings() },
+                        modifier = Modifier.focusProperties { canFocus = interactive },
+                    ) {
                         Icon(
                             Icons.Outlined.Settings,
                             contentDescription = stringResource(R.string.app_settings),
@@ -120,8 +132,12 @@ internal fun HomeScreen(
                         SectionTitle(stringResource(R.string.continue_reading))
                         Spacer(Modifier.height(10.dp))
                         ElevatedCard(
-                            onClick = { onOpenRecent(document) },
-                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                if (interactive) onOpenRecent(document)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusProperties { canFocus = interactive },
                             shape = RoundedCornerShape(26.dp),
                             colors = CardDefaults.elevatedCardColors(
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -162,7 +178,14 @@ internal fun HomeScreen(
                                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     )
                                 }
-                                IconButton(onClick = { onRemoveRecent(document) }) {
+                                IconButton(
+                                    onClick = {
+                                        if (interactive) onRemoveRecent(document)
+                                    },
+                                    modifier = Modifier.focusProperties {
+                                        canFocus = interactive
+                                    },
+                                ) {
                                     Icon(
                                         Icons.Outlined.Close,
                                         contentDescription = stringResource(
@@ -182,10 +205,11 @@ internal fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     FilledTonalButton(
-                        onClick = onOpenFile,
+                        onClick = { if (interactive) onOpenFile() },
                         modifier = Modifier
                             .weight(1f)
-                            .heightIn(min = 54.dp),
+                            .heightIn(min = 54.dp)
+                            .focusProperties { canFocus = interactive },
                         shape = RoundedCornerShape(18.dp),
                     ) {
                         Icon(Icons.Outlined.FolderOpen, contentDescription = null)
@@ -193,10 +217,11 @@ internal fun HomeScreen(
                         Text(stringResource(R.string.open_document))
                     }
                     FilledTonalButton(
-                        onClick = onNewDraft,
+                        onClick = { if (interactive) onNewDraft() },
                         modifier = Modifier
                             .weight(1f)
-                            .heightIn(min = 54.dp),
+                            .heightIn(min = 54.dp)
+                            .focusProperties { canFocus = interactive },
                         shape = RoundedCornerShape(18.dp),
                     ) {
                         Icon(Icons.Outlined.Add, contentDescription = null)
@@ -214,8 +239,9 @@ internal fun HomeScreen(
                 ) { document ->
                     RecentDocumentRow(
                         document = document,
-                        onOpen = { onOpenRecent(document) },
-                        onRemove = { onRemoveRecent(document) },
+                        interactive = interactive,
+                        onOpen = { if (interactive) onOpenRecent(document) },
+                        onRemove = { if (interactive) onRemoveRecent(document) },
                     )
                 }
             } else if (recentDocuments.isEmpty()) {
@@ -260,12 +286,15 @@ private fun SectionTitle(text: String) {
 @Composable
 private fun RecentDocumentRow(
     document: RecentDocument,
+    interactive: Boolean,
     onOpen: () -> Unit,
     onRemove: () -> Unit,
 ) {
     ElevatedCard(
         onClick = onOpen,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusProperties { canFocus = interactive },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -297,7 +326,10 @@ private fun RecentDocumentRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = onRemove) {
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.focusProperties { canFocus = interactive },
+            ) {
                 Icon(
                     Icons.Outlined.Close,
                     contentDescription = stringResource(R.string.remove_recent_document),

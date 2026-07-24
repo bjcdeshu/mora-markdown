@@ -110,6 +110,10 @@ internal fun DocumentScreen(
     onReaderPositionChanged: (Uri, Int) -> Unit,
     onModeChanged: (DocumentMode) -> Unit,
     onBack: () -> Unit,
+    predictiveBackBlocked: Boolean,
+    onPredictiveBackProgress: (Long, Float, DocumentBackSwipeEdge) -> Unit,
+    onPredictiveBackCancelled: (Long) -> Unit,
+    onPredictiveBackCompleted: (Long) -> Unit,
     onAppearance: () -> Unit,
     onSave: () -> Unit,
     onEditorChanged: (TextFieldValue) -> Unit,
@@ -162,13 +166,16 @@ internal fun DocumentScreen(
     var searchQuery by rememberSaveable(documentKey) { mutableStateOf("") }
     var searchResult by remember(documentKey) { mutableStateOf(SearchResult()) }
     var currentHeadingId by rememberSaveable(documentKey) { mutableStateOf<String?>(null) }
+    var predictiveBackGestureActive by remember(documentKey) { mutableStateOf(false) }
     val immersiveReading = mode == DocumentMode.READING &&
         !loading &&
         !toolbarVisible &&
         !showSearch &&
         !showTableOfContents
 
-    ImmersiveStatusBarEffect(hidden = immersiveReading)
+    ImmersiveStatusBarEffect(
+        hidden = immersiveReading && !predictiveBackGestureActive,
+    )
 
     fun closeSearch() {
         showSearch = false
@@ -183,9 +190,50 @@ internal fun DocumentScreen(
         onBack()
     }
 
-    BackHandler {
-        if (showSearch) closeSearch() else leaveDocument()
+    BackHandler(enabled = showSearch && !showTableOfContents && !predictiveBackBlocked) {
+        closeSearch()
     }
+
+    BackHandler(
+        enabled = !showSearch &&
+            !showTableOfContents &&
+            !predictiveBackBlocked &&
+            dirty,
+    ) {
+        leaveDocument()
+    }
+
+    PredictiveDocumentBackHandler(
+        gestureKey = documentKey,
+        enabled = !showSearch &&
+            !showTableOfContents &&
+            !predictiveBackBlocked &&
+            !dirty,
+        onProgress = onPredictiveBackProgress,
+        onGestureActiveChanged = { gestureKey, active ->
+            if (gestureKey == documentKey) {
+                predictiveBackGestureActive = active
+            }
+        },
+        onCompleted = { gestureKey ->
+            if (
+                canCompletePredictiveDocumentBack(
+                    gestureKey = gestureKey,
+                    currentDocumentKey = documentKey,
+                    dirty = dirty,
+                    searchVisible = showSearch,
+                    tableOfContentsVisible = showTableOfContents,
+                    parentOverlayVisible = predictiveBackBlocked,
+                )
+            ) {
+                readerController.publishPosition()
+                onPredictiveBackCompleted(gestureKey)
+            } else {
+                onPredictiveBackCancelled(gestureKey)
+            }
+        },
+        onCancelled = onPredictiveBackCancelled,
+    )
 
     LaunchedEffect(mode) {
         toolbarVisible = true
