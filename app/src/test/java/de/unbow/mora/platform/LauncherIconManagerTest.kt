@@ -55,4 +55,29 @@ class LauncherIconManagerTest {
             )
         }
     }
+
+    @Test
+    fun `reconciliation repairs zero multiple and wrong enabled aliases`() {
+        val target = LauncherIcon.PINE
+        val expectedRepair = planLauncherIconChanges(target)
+
+        assertEquals(
+            expectedRepair,
+            planLauncherIconReconciliation(target, emptySet()),
+        )
+        assertEquals(
+            expectedRepair,
+            planLauncherIconReconciliation(
+                target,
+                setOf(LauncherIcon.INDIGO, LauncherIcon.PINE),
+            ),
+        )
+        assertEquals(
+            expectedRepair,
+            planLauncherIconReconciliation(target, setOf(LauncherIcon.NIGHT)),
+        )
+        assertTrue(
+            planLauncherIconReconciliation(target, setOf(target)).isEmpty(),
+        )
+    }
 }

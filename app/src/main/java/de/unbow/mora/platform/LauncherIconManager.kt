@@ -31,13 +31,25 @@ internal fun planLauncherIconChanges(target: LauncherIcon): List<ComponentChange
             .forEach { add(ComponentChange(it, LauncherIconComponentState.DISABLED)) }
     }
 
+internal fun planLauncherIconReconciliation(
+    storedIcon: LauncherIcon,
+    enabledIcons: Set<LauncherIcon>,
+): List<ComponentChange> = if (enabledIcons == setOf(storedIcon)) {
+    emptyList()
+} else {
+    planLauncherIconChanges(storedIcon)
+}
+
 class LauncherIconManager(context: Context) {
     private val packageManager = context.packageManager
     private val packageName = context.packageName
 
     fun reconcile(storedIcon: LauncherIcon): Boolean {
         val alreadyReconciled = runCatching {
-            hasExactlyOneEnabledAlias(storedIcon)
+            planLauncherIconReconciliation(
+                storedIcon = storedIcon,
+                enabledIcons = LauncherIcon.entries.filter(::isEnabled).toSet(),
+            ).isEmpty()
         }.getOrDefault(false)
         return alreadyReconciled || changeLauncherIcon(storedIcon)
     }

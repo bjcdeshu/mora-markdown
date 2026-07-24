@@ -89,7 +89,11 @@ $sdk = $env:ANDROID_SDK_ROOT
 Get-FileHash app\build\outputs\apk\release\app-release.apk -Algorithm SHA256
 ```
 
-The package must be `de.unbow.mora`, `minSdk` must be 26, `targetSdk` must be 36, and the signer certificate SHA-256 must equal the registered fingerprint.
+The package must be `de.unbow.mora`, `minSdk` must be 26, `targetSdk` must be 36,
+and the signer certificate SHA-256 must equal the registered fingerprint. For the
+v0.3.0 stable path, `versionName` must be `0.3.0` and `versionCode` must be `4`.
+The downloaded `.sha256` sidecar must verify the exact APK before and after each
+device gate.
 
 ## Signed candidate
 
@@ -145,20 +149,39 @@ Test the exact downloaded candidate, not a later local rebuild.
 - Verify read-only input leads to Save As rather than silent failure.
 - Verify recent documents, reading-position restoration, table of contents,
   search, and an orientation change.
-- On a long document, verify the right-edge progress thumb remains subtle while
-  idle, becomes visible while scrolling, drags without jumping, and reaches the
-  beginning and end.
+- Use both long and short documents in portrait and landscape. The right-edge
+  progress thumb must stay hidden for a short document; for a long document it
+  must remain subtle while idle, become clearer while scrolling, drag without
+  jumping, and reach 0%, 50%, and 100%. Confirm its local right-edge drag area
+  does not block system Back outside the thumb.
 - Verify English and Simplified Chinese follow the selected device language. On
   Android 13+, also switch Mora through the system per-app language page and
-  confirm document text and filenames are unchanged.
-- Verify system, light, dark, and pure-black appearance behavior, including
-  readable status/navigation-bar icons.
+  confirm document text and filenames are unchanged. Confirm the settings sheet
+  closes before the system page opens and that returning or an unavailable system
+  language activity does not crash Mora.
+- Force an Activity recreation through a language change while editing and while
+  overlays are open. Unsaved text, search, table of contents, pending confirmation
+  dialogs, and the current reading position must remain intact.
+- Verify system, light, dark, default-dark, and pure-black appearance behavior.
+  Include Android 12+ dynamic color, system-light with Mora-dark, and system-dark
+  with Mora-light. Status/navigation-bar icons must remain readable after restart;
+  the pure-black Reader surface must be `#000000`, and theme changes must not move
+  the reading position.
 - Switch among Indigo, Pine, and Night launcher palettes. Confirm Mora remains
-  launchable after every switch and after process restart; allow for normal
-  launcher cache refresh.
-- On a predictive-Back-capable current Android device, verify the clean document
-  reveals Home during the gesture, cancellation keeps the document open, search
-  closes first, and unsaved edits still require discard confirmation.
+  launchable after every switch, process restart, cleared app data, and an
+  in-place upgrade from `v0.2.0-rc.1`. Verify launch from Recents and with the
+  system themed-icon option both on and off; record OEM cache delays or shortcut
+  recreation in the release notes.
+- On a predictive-Back-capable current Android device, verify a clean document
+  reveals Home, cancellation keeps it open, and Home then previews and returns to
+  the system launcher. Search, table of contents, Reader/App sheets, and dialogs
+  must close before the document. Repeat with unsaved edits and confirm discard
+  remains explicit. Repeat the same routes with three-button navigation.
+- At 200% English system font size, check Home, search, the editor formatting bar,
+  and all application and Reader settings for clipping or inaccessible controls.
+- Recheck file-manager and sharing-app opening after launcher-icon switching to
+  confirm activity aliases did not change external `VIEW`, `EDIT`, or `SEND`
+  entry behavior.
 - Confirm a Debug-signed preview must be uninstalled before the first Release-signed install.
 - Reinstall the same candidate over itself without losing access to recent documents.
 - Check the final APK SHA-256 and certificate fingerprint again after download.

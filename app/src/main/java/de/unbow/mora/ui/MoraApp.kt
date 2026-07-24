@@ -60,6 +60,7 @@ fun MoraApp(
 ) {
     val context = LocalContext.current
     val state = markdownViewModel.uiState
+    val pendingIncomingRequest = markdownViewModel.pendingIncomingRequest
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val storedReaderPreferences = remember(context) { ReaderSettingsRepository.load(context) }
@@ -85,7 +86,6 @@ fun MoraApp(
     var showReaderAppearance by rememberSaveable { mutableStateOf(false) }
     var showAppSettings by rememberSaveable { mutableStateOf(false) }
     var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
-    var pendingIncomingRequest by remember { mutableStateOf<IncomingDocumentRequest?>(null) }
     var fontSize by rememberSaveable {
         mutableFloatStateOf(storedReaderPreferences.fontSizePx)
     }
@@ -123,6 +123,7 @@ fun MoraApp(
     }
 
     fun acceptIncoming(request: IncomingDocumentRequest) {
+        markdownViewModel.clearPendingIncomingRequest()
         val uri = request.uri
         if (uri != null) {
             DocumentRepository.persistPermission(context, uri, request.grantedFlags)
@@ -154,7 +155,7 @@ fun MoraApp(
             DocumentRepository.persistPermission(context, uri, request.grantedFlags)
         }
         if (state.hasDocument && state.isDirty) {
-            pendingIncomingRequest = request
+            markdownViewModel.deferIncomingRequest(request)
         } else {
             acceptIncoming(request)
         }
@@ -492,7 +493,7 @@ fun MoraApp(
     pendingIncomingRequest?.let { request ->
         AlertDialog(
             onDismissRequest = {
-                pendingIncomingRequest = null
+                markdownViewModel.clearPendingIncomingRequest(request.id)
                 onIncomingRequestConsumed(request.id)
             },
             title = { Text(stringResource(R.string.open_new_document_title)) },
@@ -500,7 +501,6 @@ fun MoraApp(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        pendingIncomingRequest = null
                         acceptIncoming(request)
                     },
                 ) { Text(stringResource(R.string.discard_and_open)) }
@@ -508,7 +508,7 @@ fun MoraApp(
             dismissButton = {
                 TextButton(
                     onClick = {
-                        pendingIncomingRequest = null
+                        markdownViewModel.clearPendingIncomingRequest(request.id)
                         onIncomingRequestConsumed(request.id)
                     },
                 ) { Text(stringResource(R.string.cancel)) }

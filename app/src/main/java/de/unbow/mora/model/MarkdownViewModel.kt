@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import de.unbow.mora.IncomingDocumentRequest
 import de.unbow.mora.data.DocumentAccessException
 import de.unbow.mora.data.DocumentFailure
 import de.unbow.mora.data.DocumentRepository
@@ -86,6 +87,9 @@ class MarkdownViewModel : ViewModel() {
     var recentDocuments by mutableStateOf<List<RecentDocument>>(emptyList())
         private set
 
+    var pendingIncomingRequest by mutableStateOf<IncomingDocumentRequest?>(null)
+        private set
+
     private var persistedContent: String = ""
     private var versionCounter: Long = 0L
     private var sessionCounter: Long = 0L
@@ -95,6 +99,20 @@ class MarkdownViewModel : ViewModel() {
         if (initialized) return
         initialized = true
         recentDocuments = RecentDocumentsRepository.load(context)
+    }
+
+    fun deferIncomingRequest(request: IncomingDocumentRequest) {
+        pendingIncomingRequest = request
+    }
+
+    fun clearPendingIncomingRequest(requestId: Long) {
+        if (pendingIncomingRequest?.id == requestId) {
+            pendingIncomingRequest = null
+        }
+    }
+
+    fun clearPendingIncomingRequest() {
+        pendingIncomingRequest = null
     }
 
     fun openDocument(
