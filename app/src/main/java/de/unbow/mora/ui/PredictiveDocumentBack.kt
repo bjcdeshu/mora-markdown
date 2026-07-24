@@ -2,6 +2,7 @@ package de.unbow.mora.ui
 
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -21,38 +22,78 @@ internal data class PredictiveDocumentBackTransform(
     val scale: Float,
     val translation: Float,
     val cornerRadius: Float,
+    val alpha: Float,
 ) {
     companion object {
         val Identity = PredictiveDocumentBackTransform(
             scale = 1f,
             translation = 0f,
             cornerRadius = 0f,
+            alpha = 1f,
         )
     }
 }
 
-internal fun calculatePredictiveDocumentBackTransform(
+internal data class PredictiveDocumentBackFrame(
+    val document: PredictiveDocumentBackTransform,
+    val home: PredictiveDocumentBackTransform,
+) {
+    companion object {
+        val Idle = PredictiveDocumentBackFrame(
+            document = PredictiveDocumentBackTransform.Identity,
+            home = PredictiveDocumentBackTransform.Identity,
+        )
+    }
+}
+
+private const val PredictiveBackMaximumTranslationFraction = 0.45f
+private const val PredictiveBackDocumentFadeStart = 0.8f
+private val PredictiveBackEasing = CubicBezierEasing(0.1f, 0.1f, 0f, 1f)
+
+internal fun calculateMaximumPredictiveBackTranslation(
+    windowWidth: Float,
+): Float {
+    val resolvedWidth = windowWidth.takeIf(Float::isFinite)?.coerceAtLeast(0f) ?: 0f
+    return resolvedWidth * PredictiveBackMaximumTranslationFraction
+}
+
+internal fun calculatePredictiveDocumentBackFrame(
     progress: Float,
     swipeEdge: DocumentBackSwipeEdge,
     maximumTranslation: Float,
     maximumCornerRadius: Float,
-): PredictiveDocumentBackTransform {
+): PredictiveDocumentBackFrame {
     val resolvedProgress = if (progress.isFinite()) {
         progress.coerceIn(0f, 1f)
     } else {
         0f
     }
+    val easedProgress = PredictiveBackEasing.transform(resolvedProgress)
     val translationDirection = when (swipeEdge) {
         DocumentBackSwipeEdge.LEFT -> 1f
         DocumentBackSwipeEdge.RIGHT -> -1f
     }
+    val documentFadeProgress = (
+        (resolvedProgress - PredictiveBackDocumentFadeStart) /
+            (1f - PredictiveBackDocumentFadeStart)
+        ).coerceIn(0f, 1f)
+    val documentAlpha = 1f - PredictiveBackEasing.transform(documentFadeProgress)
 
-    return PredictiveDocumentBackTransform(
-        scale = 1f - (0.04f * resolvedProgress),
-        translation = maximumTranslation.coerceAtLeast(0f) *
-            resolvedProgress *
-            translationDirection,
-        cornerRadius = maximumCornerRadius.coerceAtLeast(0f) * resolvedProgress,
+    return PredictiveDocumentBackFrame(
+        document = PredictiveDocumentBackTransform(
+            scale = 1f - (0.1f * easedProgress),
+            translation = maximumTranslation.coerceAtLeast(0f) *
+                easedProgress *
+                translationDirection,
+            cornerRadius = maximumCornerRadius.coerceAtLeast(0f) * easedProgress,
+            alpha = documentAlpha,
+        ),
+        home = PredictiveDocumentBackTransform(
+            scale = 1.1f - (0.1f * easedProgress),
+            translation = 0f,
+            cornerRadius = 0f,
+            alpha = 1f,
+        ),
     )
 }
 

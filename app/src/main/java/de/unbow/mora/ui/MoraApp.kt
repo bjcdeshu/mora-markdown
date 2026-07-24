@@ -3,6 +3,10 @@ package de.unbow.mora.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,6 +34,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.input.TextFieldValue
@@ -48,6 +53,7 @@ import de.unbow.mora.model.DocumentUiError
 import de.unbow.mora.model.MarkdownViewModel
 import de.unbow.mora.model.displayDocumentName
 import de.unbow.mora.ui.theme.LocalMoraIsDark
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -119,8 +125,42 @@ fun MoraApp(
         mutableLongStateOf(Long.MIN_VALUE)
     }
     var readerScrollY by rememberSaveable { mutableIntStateOf(0) }
-    var predictiveBackTransform by remember {
-        mutableStateOf(PredictiveDocumentBackTransform.Identity)
+    var predictiveBackProgress by remember { mutableFloatStateOf(0f) }
+    var predictiveBackSwipeEdge by remember {
+        mutableStateOf(DocumentBackSwipeEdge.LEFT)
+    }
+    var predictiveBackVisualActive by remember { mutableStateOf(false) }
+    var predictiveBackResetJob by remember { mutableStateOf<Job?>(null) }
+
+    fun resetPredictiveBackImmediately() {
+        predictiveBackResetJob?.cancel()
+        predictiveBackResetJob = null
+        predictiveBackProgress = 0f
+        predictiveBackVisualActive = false
+    }
+
+    fun animatePredictiveBackCancellation() {
+        predictiveBackResetJob?.cancel()
+        val startingProgress = predictiveBackProgress
+        if (!predictiveBackVisualActive || startingProgress <= 0f) {
+            resetPredictiveBackImmediately()
+            return
+        }
+        predictiveBackResetJob = scope.launch {
+            animate(
+                initialValue = startingProgress,
+                targetValue = 0f,
+                animationSpec = tween(
+                    durationMillis = 180,
+                    easing = LinearEasing,
+                ),
+            ) { value, _ ->
+                predictiveBackProgress = value
+            }
+            predictiveBackProgress = 0f
+            predictiveBackVisualActive = false
+            predictiveBackResetJob = null
+        }
     }
 
     fun currentPreferences() = ReaderPreferences(
@@ -203,12 +243,12 @@ fun MoraApp(
             showAppSettings = false
         } else {
             showReaderAppearance = false
-            predictiveBackTransform = PredictiveDocumentBackTransform.Identity
+            resetPredictiveBackImmediately()
         }
     }
 
     LaunchedEffect(state.sessionId) {
-        predictiveBackTransform = PredictiveDocumentBackTransform.Identity
+        resetPredictiveBackImmediately()
     }
 
     val localizedError = when (val error = state.error) {
@@ -273,16 +313,41 @@ fun MoraApp(
     }
 
     val density = LocalDensity.current
-    val maximumBackTranslation = with(density) { 24.dp.toPx() }
+    val windowWidth = LocalWindowInfo.current.containerSize.width.toFloat()
+    val maximumBackTranslation = calculateMaximumPredictiveBackTranslation(
+        windowWidth = windowWidth,
+    )
     val maximumBackCornerRadius = with(density) { 28.dp.toPx() }
+    val predictiveBackFrame = if (predictiveBackVisualActive) {
+        calculatePredictiveDocumentBackFrame(
+            progress = predictiveBackProgress,
+            swipeEdge = predictiveBackSwipeEdge,
+            maximumTranslation = maximumBackTranslation,
+            maximumCornerRadius = maximumBackCornerRadius,
+        )
+    } else {
+        PredictiveDocumentBackFrame.Idle
+    }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface),
+    ) {
         HomeScreen(
-            modifier = if (state.hasDocument) {
-                Modifier.clearAndSetSemantics {}
-            } else {
-                Modifier
-            },
+            modifier = Modifier
+                .graphicsLayer {
+                    scaleX = predictiveBackFrame.home.scale
+                    scaleY = predictiveBackFrame.home.scale
+                    alpha = predictiveBackFrame.home.alpha
+                }
+                .then(
+                    if (state.hasDocument) {
+                        Modifier.clearAndSetSemantics {}
+                    } else {
+                        Modifier
+                    },
+                ),
             recentDocuments = markdownViewModel.recentDocuments,
             snackbarHostState = snackbarHostState,
             showSnackbarHost = !state.hasDocument,
@@ -349,10 +414,11 @@ fun MoraApp(
                         }
                     }
                     .graphicsLayer {
-                        scaleX = predictiveBackTransform.scale
-                        scaleY = predictiveBackTransform.scale
-                        translationX = predictiveBackTransform.translation
-                        val cornerRadius = predictiveBackTransform.cornerRadius
+                        scaleX = predictiveBackFrame.document.scale
+                        scaleY = predictiveBackFrame.document.scale
+                        translationX = predictiveBackFrame.document.translation
+                        alpha = predictiveBackFrame.document.alpha
+                        val cornerRadius = predictiveBackFrame.document.cornerRadius
                         shape = RoundedCornerShape(cornerRadius.toDp())
                         clip = cornerRadius > 0f
                     },
@@ -396,19 +462,19 @@ fun MoraApp(
                     predictiveBackBlocked = showReaderAppearance ||
                         showDiscardDialog ||
                         pendingIncomingRequest != null,
+                    predictiveBackVisualActive = predictiveBackVisualActive,
                     onPredictiveBackProgress = { gestureKey, progress, swipeEdge ->
                         if (markdownViewModel.uiState.sessionId == gestureKey) {
-                            predictiveBackTransform = calculatePredictiveDocumentBackTransform(
-                                progress = progress,
-                                swipeEdge = swipeEdge,
-                                maximumTranslation = maximumBackTranslation,
-                                maximumCornerRadius = maximumBackCornerRadius,
-                            )
+                            predictiveBackResetJob?.cancel()
+                            predictiveBackResetJob = null
+                            predictiveBackSwipeEdge = swipeEdge
+                            predictiveBackProgress = progress
+                            predictiveBackVisualActive = true
                         }
                     },
                     onPredictiveBackCancelled = { gestureKey ->
                         if (markdownViewModel.uiState.sessionId == gestureKey) {
-                            predictiveBackTransform = PredictiveDocumentBackTransform.Identity
+                            animatePredictiveBackCancellation()
                         }
                     },
                     onPredictiveBackCompleted = { gestureKey ->
@@ -418,13 +484,13 @@ fun MoraApp(
                             currentState.sessionId == gestureKey &&
                             !currentState.isDirty
                         ) {
+                            resetPredictiveBackImmediately()
                             showReaderAppearance = false
                             showAppSettings = false
                             readerScrollY = 0
                             markdownViewModel.closeDocument()
                         } else {
-                            predictiveBackTransform =
-                                PredictiveDocumentBackTransform.Identity
+                            animatePredictiveBackCancellation()
                         }
                     },
                     onAppearance = {
