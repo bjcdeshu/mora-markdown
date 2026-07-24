@@ -26,7 +26,6 @@ import de.unbow.mora.R
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AppearanceSheet(
-    title: String,
     fontSize: Float,
     lineHeight: Float,
     horizontalPadding: Float,
@@ -47,7 +46,7 @@ internal fun AppearanceSheet(
                 .navigationBarsPadding(),
         ) {
             Text(
-                text = title,
+                text = stringResource(R.string.reading_typography),
                 style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )

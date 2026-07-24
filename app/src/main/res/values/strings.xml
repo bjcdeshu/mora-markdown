@@ -25,13 +25,26 @@
     </plurals>
 
     <string name="reading_typography">Reading typography</string>
-    <string name="reading_settings">Reading settings</string>
     <string name="body_font_size">Body text size</string>
     <string name="line_height">Line height</string>
     <string name="page_margins">Page margins</string>
     <string name="restore_defaults">Restore defaults</string>
     <string name="pixels_value" translatable="false">%1$d px</string>
     <string name="decimal_value" translatable="false">%1$.2f</string>
+
+    <string name="settings_theme">Theme</string>
+    <string name="theme_follow_system">Follow system</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="dark_background">Dark background</string>
+    <string name="dark_background_dark_only">Applies only in dark mode</string>
+    <string name="dark_background_default">Default</string>
+    <string name="dark_background_pure_black">Pure black</string>
+    <string name="settings_language">Language</string>
+    <string name="current_ui_language_name">English</string>
+    <string name="language_follows_device">Follows device language</string>
+    <string name="language_change_in_android">Change in Android settings</string>
+    <string name="language_settings_unavailable">App language settings aren’t available on this device.</string>
 
     <string name="default_document_filename">Document.md</string>
     <string name="untitled_filename_base">Untitled</string>

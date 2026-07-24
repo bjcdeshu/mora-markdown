@@ -38,6 +38,7 @@ import de.unbow.mora.markdown.ReaderPreferences
 import de.unbow.mora.model.DocumentSaveResult
 import de.unbow.mora.model.DocumentUiError
 import de.unbow.mora.model.MarkdownViewModel
+import de.unbow.mora.model.displayDocumentName
 import de.unbow.mora.ui.theme.LocalMoraIsDark
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -65,9 +66,16 @@ fun MoraApp(
     val saveFailedMessage = stringResource(R.string.document_save_failed)
     val saveAsRequiredMessage = stringResource(R.string.document_requires_save_as)
     val readOnlyNotice = stringResource(R.string.read_only_document_notice)
+    val languageSettingsUnavailable = stringResource(R.string.language_settings_unavailable)
+    val displayedDocumentName = displayDocumentName(
+        storedName = state.name,
+        usesLocalizedFallback = state.nameUsesLocalizedFallback,
+        localizedFallback = defaultDocumentFilename,
+    )
 
     var mode by rememberSaveable { mutableStateOf(DocumentMode.READING) }
-    var showAppearance by rememberSaveable { mutableStateOf(false) }
+    var showReaderAppearance by rememberSaveable { mutableStateOf(false) }
+    var showAppSettings by rememberSaveable { mutableStateOf(false) }
     var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
     var pendingIncomingRequest by remember { mutableStateOf<IncomingDocumentRequest?>(null) }
     var fontSize by rememberSaveable {
@@ -92,6 +100,8 @@ fun MoraApp(
     }
 
     fun openDocument(uri: Uri) {
+        showReaderAppearance = false
+        showAppSettings = false
         readerScrollY = 0
         mode = DocumentMode.READING
         markdownViewModel.openDocument(
@@ -107,6 +117,8 @@ fun MoraApp(
             DocumentRepository.persistPermission(context, uri, request.grantedFlags)
             openDocument(uri)
         } else {
+            showReaderAppearance = false
+            showAppSettings = false
             readerScrollY = 0
             mode = DocumentMode.READING
             markdownViewModel.openSharedText(
@@ -124,7 +136,8 @@ fun MoraApp(
     LaunchedEffect(incomingRequest?.id) {
         val request = incomingRequest ?: return@LaunchedEffect
         markdownViewModel.initialize(context)
-        showAppearance = false
+        showReaderAppearance = false
+        showAppSettings = false
         showDiscardDialog = false
         request.uri?.let { uri ->
             DocumentRepository.persistPermission(context, uri, request.grantedFlags)
@@ -142,10 +155,22 @@ fun MoraApp(
         }
     }
 
+    LaunchedEffect(state.hasDocument) {
+        if (state.hasDocument) {
+            showAppSettings = false
+        } else {
+            showReaderAppearance = false
+        }
+    }
+
     val localizedError = when (val error = state.error) {
         is DocumentUiError.OpenFailed -> stringResource(
             R.string.open_document_failed,
-            error.documentName,
+            displayDocumentName(
+                storedName = error.documentName,
+                usesLocalizedFallback = error.usesLocalizedFallback,
+                localizedFallback = defaultDocumentFilename,
+            ),
         )
 
         null -> null
@@ -189,6 +214,8 @@ fun MoraApp(
     }
 
     val closeDocument: () -> Unit = {
+        showReaderAppearance = false
+        showAppSettings = false
         if (state.isDirty) {
             showDiscardDialog = true
         } else {
@@ -218,6 +245,7 @@ fun MoraApp(
                     )
                 },
                 onNewDraft = {
+                    showAppSettings = false
                     readerScrollY = 0
                     mode = DocumentMode.EDITING
                     markdownViewModel.newDraft(
@@ -231,7 +259,10 @@ fun MoraApp(
                 onRemoveRecent = { document ->
                     markdownViewModel.removeRecent(context, document)
                 },
-                onSettings = { showAppearance = true },
+                onSettings = {
+                    showReaderAppearance = false
+                    showAppSettings = true
+                },
             )
         } else {
             var editorValue by remember(state.contentVersion) {
@@ -253,7 +284,7 @@ fun MoraApp(
             DocumentScreen(
                 documentKey = state.sessionId,
                 documentUri = state.uri,
-                name = state.name,
+                name = displayedDocumentName,
                 dirty = state.isDirty,
                 loading = state.isLoading,
                 markdown = state.content,
@@ -284,11 +315,17 @@ fun MoraApp(
                     }
                 },
                 onBack = closeDocument,
-                onAppearance = { showAppearance = true },
+                onAppearance = {
+                    showAppSettings = false
+                    showReaderAppearance = true
+                },
                 onSave = {
                     if (state.uri == null || !state.canWrite) {
                         createDocument.launch(
-                            normalizedMarkdownName(state.name, untitledFilenameBase),
+                            normalizedMarkdownName(
+                                displayedDocumentName,
+                                untitledFilenameBase,
+                            ),
                         )
                     } else {
                         markdownViewModel.save(context, notifySave)
@@ -302,13 +339,21 @@ fun MoraApp(
         }
     }
 
-    if (showAppearance) {
-        AppearanceSheet(
-            title = if (state.hasDocument) {
-                stringResource(R.string.reading_typography)
-            } else {
-                stringResource(R.string.reading_settings)
+    if (showAppSettings && !state.hasDocument) {
+        AppSettingsSheet(
+            appSettings = appSettings,
+            onAppSettingsChanged = onAppSettingsChanged,
+            onLanguageSettingsUnavailable = {
+                scope.launch {
+                    snackbarHostState.showSnackbar(languageSettingsUnavailable)
+                }
             },
+            onDismiss = { showAppSettings = false },
+        )
+    }
+
+    if (showReaderAppearance && state.hasDocument) {
+        AppearanceSheet(
             fontSize = fontSize,
             lineHeight = lineHeight,
             horizontalPadding = horizontalPadding,
@@ -330,7 +375,7 @@ fun MoraApp(
                 horizontalPadding = ReaderPreferences.Default.horizontalPaddingPx
                 persistReaderPreferences()
             },
-            onDismiss = { showAppearance = false },
+            onDismiss = { showReaderAppearance = false },
         )
     }
 
@@ -343,6 +388,8 @@ fun MoraApp(
                 TextButton(
                     onClick = {
                         showDiscardDialog = false
+                        showReaderAppearance = false
+                        showAppSettings = false
                         readerScrollY = 0
                         markdownViewModel.closeDocument()
                     },

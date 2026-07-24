@@ -16,7 +16,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 sealed interface DocumentUiError {
-    data class OpenFailed(val documentName: String) : DocumentUiError
+    data class OpenFailed(
+        val documentName: String,
+        val usesLocalizedFallback: Boolean = false,
+    ) : DocumentUiError
 }
 
 sealed interface DocumentSaveResult {
@@ -25,19 +28,39 @@ sealed interface DocumentSaveResult {
 }
 
 internal data class ResolvedDocumentName(
-    val displayName: String,
+    val storedName: String,
+    val usesLocalizedFallback: Boolean,
     val persistedName: String,
 )
 
 internal fun resolveDocumentName(
     sourceName: String?,
     fallbackName: String,
+    fallbackIsLocalized: Boolean,
 ): ResolvedDocumentName {
     val originalName = sourceName?.takeIf(String::isNotBlank)
+    val fallback = fallbackName.takeIf(String::isNotBlank).orEmpty()
+    val usesLocalizedFallback = originalName == null && fallbackIsLocalized
+    val stableName = when {
+        originalName != null -> originalName
+        usesLocalizedFallback -> ""
+        else -> fallback
+    }
     return ResolvedDocumentName(
-        displayName = originalName ?: fallbackName,
-        persistedName = originalName.orEmpty(),
+        storedName = stableName,
+        usesLocalizedFallback = usesLocalizedFallback,
+        persistedName = stableName,
     )
+}
+
+internal fun displayDocumentName(
+    storedName: String,
+    usesLocalizedFallback: Boolean,
+    localizedFallback: String,
+): String = if (usesLocalizedFallback || storedName.isBlank()) {
+    localizedFallback
+} else {
+    storedName
 }
 
 data class DocumentUiState(
@@ -45,6 +68,7 @@ data class DocumentUiState(
     val hasDocument: Boolean = false,
     val uri: Uri? = null,
     val name: String = "",
+    val nameUsesLocalizedFallback: Boolean = false,
     val content: String = "",
     val canWrite: Boolean = false,
     val initialScrollY: Int = 0,
@@ -83,17 +107,21 @@ class MarkdownViewModel : ViewModel() {
         val knownPosition = recentDocuments.firstOrNull { it.uri == uri }?.scrollY
             ?: RecentDocumentsRepository.load(context).firstOrNull { it.uri == uri }?.scrollY
             ?: 0
-        val displayName = uri.lastPathSegment
+        val uriName = uri.lastPathSegment
             ?.substringAfterLast('/')
             ?.takeIf(String::isNotBlank)
-            ?: fallbackName
-
+        val initialName = resolveDocumentName(
+            sourceName = uriName,
+            fallbackName = fallbackName,
+            fallbackIsLocalized = true,
+        )
         persistedContent = ""
         uiState = DocumentUiState(
             sessionId = requestSessionId,
             hasDocument = true,
             uri = uri,
-            name = displayName,
+            name = initialName.storedName,
+            nameUsesLocalizedFallback = initialName.usesLocalizedFallback,
             isLoading = true,
             contentVersion = requestVersion,
             initialScrollY = knownPosition,
@@ -110,7 +138,10 @@ class MarkdownViewModel : ViewModel() {
                 persistedContent = ""
                 uiState = DocumentUiState(
                     sessionId = requestSessionId,
-                    error = DocumentUiError.OpenFailed(displayName),
+                    error = DocumentUiError.OpenFailed(
+                        documentName = initialName.storedName,
+                        usesLocalizedFallback = initialName.usesLocalizedFallback,
+                    ),
                     contentVersion = nextVersion(),
                 )
                 return@launch
@@ -121,6 +152,7 @@ class MarkdownViewModel : ViewModel() {
             val resolvedName = resolveDocumentName(
                 sourceName = loaded.name,
                 fallbackName = fallbackName,
+                fallbackIsLocalized = true,
             )
             recentDocuments = RecentDocumentsRepository.recordOpened(
                 context = context,
@@ -128,7 +160,8 @@ class MarkdownViewModel : ViewModel() {
                 name = resolvedName.persistedName,
             )
             uiState = uiState.copy(
-                name = resolvedName.displayName,
+                name = resolvedName.storedName,
+                nameUsesLocalizedFallback = resolvedName.usesLocalizedFallback,
                 content = loaded.content,
                 canWrite = loaded.canWrite,
                 isDirty = false,
@@ -187,6 +220,7 @@ class MarkdownViewModel : ViewModel() {
             contentToSave = stateToSave.content,
             updateDocumentIdentity = false,
             fallbackName = stateToSave.name,
+            fallbackIsLocalized = stateToSave.nameUsesLocalizedFallback,
             onResult = onResult,
         )
     }
@@ -200,6 +234,7 @@ class MarkdownViewModel : ViewModel() {
             contentToSave = stateToSave.content,
             updateDocumentIdentity = true,
             fallbackName = stateToSave.name,
+            fallbackIsLocalized = stateToSave.nameUsesLocalizedFallback,
             onResult = onResult,
         )
     }
@@ -219,6 +254,7 @@ class MarkdownViewModel : ViewModel() {
         contentToSave: String,
         updateDocumentIdentity: Boolean,
         fallbackName: String,
+        fallbackIsLocalized: Boolean,
         onResult: (DocumentSaveResult) -> Unit,
     ) {
         viewModelScope.launch {
@@ -241,21 +277,27 @@ class MarkdownViewModel : ViewModel() {
             }
 
             persistedContent = contentToSave
-            val name = if (updateDocumentIdentity) {
-                DocumentRepository.displayName(context, uri) ?: fallbackName
+            val resolvedName = if (updateDocumentIdentity) {
+                resolveDocumentName(
+                    sourceName = DocumentRepository.displayName(context, uri),
+                    fallbackName = fallbackName,
+                    fallbackIsLocalized = fallbackIsLocalized,
+                )
             } else {
-                uiState.name
+                null
             }
             if (updateDocumentIdentity) {
                 recentDocuments = RecentDocumentsRepository.recordOpened(
                     context = context,
                     uri = uri,
-                    name = name,
+                    name = resolvedName?.persistedName.orEmpty(),
                 )
             }
             uiState = uiState.copy(
                 uri = uri,
-                name = name,
+                name = resolvedName?.storedName ?: uiState.name,
+                nameUsesLocalizedFallback = resolvedName?.usesLocalizedFallback
+                    ?: uiState.nameUsesLocalizedFallback,
                 canWrite = true,
                 initialScrollY = if (updateDocumentIdentity) 0 else uiState.initialScrollY,
                 isDirty = uiState.content != contentToSave,
