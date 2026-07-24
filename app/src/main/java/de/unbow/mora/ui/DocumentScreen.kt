@@ -1,14 +1,19 @@
 package de.unbow.mora.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -47,6 +53,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,9 +64,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import de.unbow.mora.markdown.MarkdownRenderer
 import de.unbow.mora.markdown.ReaderPalette
 import de.unbow.mora.markdown.ReaderPreferences
@@ -130,6 +142,13 @@ internal fun DocumentScreen(
     var searchQuery by rememberSaveable(documentKey) { mutableStateOf("") }
     var searchResult by remember(documentKey) { mutableStateOf(SearchResult()) }
     var currentHeadingId by rememberSaveable(documentKey) { mutableStateOf<String?>(null) }
+    val immersiveReading = mode == DocumentMode.READING &&
+        !loading &&
+        !toolbarVisible &&
+        !showSearch &&
+        !showTableOfContents
+
+    ImmersiveStatusBarEffect(hidden = immersiveReading)
 
     fun closeSearch() {
         showSearch = false
@@ -227,6 +246,17 @@ internal fun DocumentScreen(
             }
 
             AnimatedVisibility(
+                visible = immersiveReading,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth(),
+                enter = fadeIn(animationSpec = tween(durationMillis = 140)),
+                exit = fadeOut(animationSpec = tween(durationMillis = 100)),
+            ) {
+                ReaderTopEdgeFade()
+            }
+
+            AnimatedVisibility(
                 visible = mode == DocumentMode.READING &&
                     !loading &&
                     (toolbarVisible || showSearch),
@@ -278,6 +308,61 @@ internal fun DocumentScreen(
             onDismiss = { showTableOfContents = false },
         )
     }
+}
+
+@Composable
+private fun ReaderTopEdgeFade() {
+    val surface = MaterialTheme.colorScheme.surface
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .background(
+                Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0f to surface,
+                        0.45f to surface.copy(alpha = 0.56f),
+                        1f to surface.copy(alpha = 0f),
+                    ),
+                ),
+            ),
+    )
+}
+
+@Composable
+private fun ImmersiveStatusBarEffect(hidden: Boolean) {
+    val view = LocalView.current
+    val window = remember(view) { view.context.findActivity()?.window }
+    val controller = remember(window) {
+        window?.let { WindowCompat.getInsetsController(it, it.decorView) }
+    }
+
+    DisposableEffect(controller) {
+        val previousBehavior = controller?.systemBarsBehavior
+        controller?.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+        onDispose {
+            controller?.show(WindowInsetsCompat.Type.statusBars())
+            if (previousBehavior != null) {
+                controller.systemBarsBehavior = previousBehavior
+            }
+        }
+    }
+
+    LaunchedEffect(controller, hidden) {
+        if (hidden) {
+            controller?.hide(WindowInsetsCompat.Type.statusBars())
+        } else {
+            controller?.show(WindowInsetsCompat.Type.statusBars())
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 @Composable

@@ -11,6 +11,7 @@ First public release target.
 ### Added
 
 - Immersive reader toolbar that hides while scrolling down and returns on upward scroll.
+- Transient right-edge reading-position marker for scrollable documents.
 - Refined default typography with persistent font-size, line-height, and margin settings.
 - H1–H3 table of contents with current-section highlighting.
 - In-document search with previous and next match navigation.
@@ -25,6 +26,7 @@ First public release target.
 
 ### Changed
 
+- Extended immersive reading to hide the status bar and softly fade text at the top edge.
 - Standardized local and CI builds on the stable Android 16 SDK (API 36) while retaining Android 8.0 (API 26) as the minimum supported version.
 - Normalized the Windows Gradle launcher so fresh clones remain clean under the repository's line-ending rules.
 
