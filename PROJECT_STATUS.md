@@ -13,7 +13,7 @@ The current phase is preparing recoverable long-term signing and a two-step rele
 
 A public release still requires real-device validation of the manually dispatched candidate, explicit approval to tag, and a second validation of the exact draft attachment before publication.
 
-The first long-term RSA-2048 identity was generated outside the repository on 2026-07-24. The encrypted keystore copy and protected credential copy passed a local restore test, the `release-signing` GitHub Environment is restricted to `main` and `v*` refs with maintainer review, and an active tag ruleset blocks deletion or non-fast-forward updates of `v*` tags. The backup gate remains incomplete until the passwords have an independent password-manager or equivalent recovery record and every independent backup has passed a restore test.
+The first long-term RSA-2048 identity was generated outside the repository on 2026-07-24. The encrypted keystore copy and protected credential copy passed a local restore test, both passwords were independently stored and restored from a password manager without mismatch, the `release-signing` GitHub Environment is restricted to `main` and `v*` refs with maintainer review, and an active tag ruleset blocks deletion or non-fast-forward updates of `v*` tags. The signing backup gate is complete; the exact cloud-built candidate still requires the documented real-device matrix before any tag is created.
 
 `docs/PRODUCT_SPEC.md` is an early exploration document, not the current implementation checklist. In particular, its CodeMirror and single-WebView proposal does not describe the current Compose source editor plus reader WebView architecture. Current code, `ROADMAP.md`, and this status document take precedence.
 
