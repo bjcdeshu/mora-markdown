@@ -2,7 +2,11 @@
 
 Mora uses one long-term Android app-signing key for every public APK. Losing that key or its passwords prevents existing users from installing future GitHub builds as updates. Treat this document as a release gate, not as a convenience checklist.
 
-The first public target is `v0.2.0`. It remains unreleased until the maintainer approves the exact signed candidate after real-device testing.
+The first public artifact is the signed `v0.2.0-rc.1` release candidate. It may be
+published as an explicitly labeled GitHub Pre-release after the automated build,
+signature, metadata, and checksum gates pass. The stable `v0.2.0` release remains
+blocked until the maintainer approves the exact signed asset after real-device
+testing.
 
 ## Safety model
 
@@ -83,6 +87,29 @@ The workflow:
 
 Download that artifact and record its SHA-256 before device testing.
 
+## Public release candidate
+
+A release-candidate tag uses `v<major>.<minor>.<patch>-rc.<number>`. Before pushing
+one:
+
+1. increment `versionCode`;
+2. make `versionName` equal the tag without its leading `v`;
+3. add one dated heading for that exact version to `CHANGELOG.md`;
+4. run normal pull-request and `main` CI;
+5. create an annotated tag on a commit contained in `main`.
+
+The tag workflow rebuilds the APK with the protected long-term key, verifies its
+package metadata and certificate, verifies the downloaded workflow artifact, and
+publishes an explicitly labeled public Pre-release with the APK and SHA-256
+sidecar. The release notes must state in both English and Chinese that the complete
+real-device matrix is pending and advise users to back up important files before
+editing.
+
+Publishing an RC makes a test build easy to download; it does not satisfy or weaken
+the stable-release gate. Download the exact Release attachment, independently
+repeat its checksum, signer, and package-metadata checks, and use that same APK for
+the device matrix.
+
 ## Real-device gate
 
 Test the exact downloaded candidate, not a later local rebuild.
@@ -96,13 +123,14 @@ Test the exact downloaded candidate, not a later local rebuild.
 - Reinstall the same candidate over itself without losing access to recent documents.
 - Check the final APK SHA-256 and certificate fingerprint again after download.
 
-Record device models, Android versions, file providers, failures, and the approved APK SHA-256 in the release pull request.
+Record device models, Android versions, file providers, failures, and the approved
+APK SHA-256 in the release pull request or the release-tracking issue.
 
-## Version and tag gate
+## Stable version and tag gate
 
-Before tagging:
+Before tagging a stable version:
 
-1. confirm the candidate passed the real-device gate;
+1. confirm the exact release-candidate asset passed the real-device gate;
 2. increment `versionCode` for every distributed build;
 3. make `versionName` equal the tag without its leading `v`;
 4. replace `Unreleased` in the matching `CHANGELOG.md` heading with the release date;
@@ -110,7 +138,10 @@ Before tagging:
 6. run normal CI and obtain explicit maintainer approval;
 7. create an annotated `v<versionName>` tag on a commit contained in `main`.
 
-Pushing the tag runs the same signed build and verification path. Only a tag push—not a manually selected tag ref—may invoke the publish job. The workflow creates a draft pre-release with the verified APK and checksum; it does not make that draft public.
+Pushing a stable tag runs the same signed build and verification path. Only a tag
+push—not a manually selected tag ref—may invoke the release job. Unlike an `-rc.`
+tag, a stable tag creates a draft pre-release with the verified APK and checksum;
+it does not make that draft public.
 
 The tag workflow rebuilds the APK, so its attachment is not assumed to be byte-for-byte identical to the manually dispatched candidate. Download the exact draft attachment, independently repeat the checksum, signer, and package-metadata checks, and run the complete real-device gate again. Publish the draft only after that exact APK passes and the maintainer explicitly approves publication.
 

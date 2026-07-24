@@ -48,14 +48,16 @@ class MarkdownViewModel : ViewModel() {
     fun openDocument(
         context: Context,
         uri: Uri,
-        canWriteHint: Boolean? = null,
     ) {
         val requestSessionId = nextSessionId()
         val requestVersion = nextVersion()
         val knownPosition = recentDocuments.firstOrNull { it.uri == uri }?.scrollY
             ?: RecentDocumentsRepository.load(context).firstOrNull { it.uri == uri }?.scrollY
             ?: 0
-        val displayName = DocumentRepository.displayName(context, uri) ?: "正在打开…"
+        val displayName = uri.lastPathSegment
+            ?.substringAfterLast('/')
+            ?.takeIf(String::isNotBlank)
+            ?: "正在打开…"
 
         persistedContent = ""
         uiState = DocumentUiState(
@@ -69,7 +71,7 @@ class MarkdownViewModel : ViewModel() {
         )
 
         viewModelScope.launch {
-            runCatching { DocumentRepository.read(context, uri, canWriteHint) }
+            runCatching { DocumentRepository.read(context, uri) }
                 .onSuccess { loaded ->
                     if (uiState.sessionId != requestSessionId) return@onSuccess
                     persistedContent = loaded.content
@@ -89,8 +91,8 @@ class MarkdownViewModel : ViewModel() {
                     )
                 }
                 .onFailure { error ->
-                    recentDocuments = RecentDocumentsRepository.remove(context, uri)
                     if (uiState.sessionId != requestSessionId) return@onFailure
+                    recentDocuments = RecentDocumentsRepository.remove(context, uri)
                     persistedContent = ""
                     uiState = DocumentUiState(
                         sessionId = requestSessionId,

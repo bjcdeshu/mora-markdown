@@ -75,4 +75,16 @@ class MarkdownRendererTest {
         assertTrue(rendered.html.contains("padding: 96px 20.0px 112px"))
         assertTrue(rendered.html.contains("h1 { font-size: 1.74em"))
     }
+
+    @Test
+    fun `does not assume the language of user documents`() {
+        val rendered = MarkdownRenderer.render(
+            markdown = "# A document in an unknown language",
+            palette = palette,
+            preferences = ReaderPreferences.Default,
+        )
+
+        assertTrue(rendered.html.contains("<html>"))
+        assertFalse(rendered.html.contains("<html lang="))
+    }
 }

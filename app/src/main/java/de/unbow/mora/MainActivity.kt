@@ -19,7 +19,6 @@ data class IncomingDocumentRequest(
     val sharedText: String? = null,
     val suggestedName: String = "共享内容.md",
     val grantedFlags: Int,
-    val canWriteHint: Boolean,
 )
 
 class MainActivity : ComponentActivity() {
@@ -84,7 +83,6 @@ class MainActivity : ComponentActivity() {
                 ?.takeIf(String::isNotBlank)
                 ?: "共享内容.md",
             grantedFlags = sourceIntent.flags,
-            canWriteHint = sourceIntent.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION != 0,
         )
     }
 

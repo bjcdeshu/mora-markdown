@@ -2,6 +2,8 @@ package de.unbow.mora.data
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.content.edit
+import androidx.core.net.toUri
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -32,7 +34,7 @@ object RecentDocumentsRepository {
                     val name = item.optString("name").takeIf(String::isNotBlank) ?: "文档.md"
                     add(
                         RecentDocument(
-                            uri = Uri.parse(uri),
+                            uri = uri.toUri(),
                             name = name,
                             lastOpenedAt = item.optLong("lastOpenedAt"),
                             scrollY = item.optInt("scrollY").coerceAtLeast(0),
@@ -106,8 +108,8 @@ object RecentDocumentsRepository {
         }
 
         context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
-            .edit()
-            .putString(documentsKey, array.toString())
-            .apply()
+            .edit {
+                putString(documentsKey, array.toString())
+            }
     }
 }

@@ -47,4 +47,23 @@ class ReaderPositionMarkerTest {
         assertEquals(0f, beforeStart.progress)
         assertEquals(1f, afterEnd.progress)
     }
+
+    @Test
+    fun invalidScrollMetricsDoNotShowMarker() {
+        assertFalse(calculateReaderPositionMarker(offset = 0, range = 0, extent = 1).isScrollable)
+        assertFalse(calculateReaderPositionMarker(offset = 0, range = 1, extent = 0).isScrollable)
+        assertFalse(calculateReaderPositionMarker(offset = 0, range = -1, extent = 1).isScrollable)
+        assertFalse(calculateReaderPositionMarker(offset = 0, range = 1, extent = -1).isScrollable)
+    }
+
+    @Test
+    fun onlyTheFixedHttpsReaderOriginIsInternal() {
+        assertTrue(isInternalReaderLocation("https", "mora.invalid", "/"))
+        assertTrue(isInternalReaderLocation("HTTPS", "MORA.INVALID", ""))
+        assertFalse(isInternalReaderLocation("http", "mora.invalid", "/"))
+        assertFalse(isInternalReaderLocation("file", "mora.invalid", "/"))
+        assertFalse(isInternalReaderLocation("https", "example.com", "/"))
+        assertFalse(isInternalReaderLocation("https", "mora.invalid", "/another-document"))
+        assertFalse(isInternalReaderLocation(null, "mora.invalid", "/"))
+    }
 }

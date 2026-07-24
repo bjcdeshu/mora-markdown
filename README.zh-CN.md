@@ -8,7 +8,9 @@ Mora 只围绕一条简单的使用链路：打开一份标准 Markdown 文件�
 
 它以单篇文档为中心，而不是以 Vault 为中心；没有账号、私有文档格式、遥测或云端服务。
 
-> Mora v0.2.0 是首个公开发布目标。项目仍处于早期阶段，欢迎通过 GitHub Issues 反馈特定设备或文件提供器上的问题。
+> Mora v0.2.0 是第一个稳定发布目标。公开的 `-rc` 版本是已签名的测试候选，
+> 可能仍在等待完整真机矩阵；欢迎通过 GitHub Issues
+> 反馈特定设备或文件提供器上的问题。
 
 ## 核心能力
 
@@ -28,7 +30,9 @@ Mora 不准备成为知识库工作区。Vault、双链、关系图谱、内置�
 
 ## 下载
 
-可安装 APK 将附在本仓库的 [GitHub Releases](../../releases) 中。正式 Release 发布前，可以从源码构建 Debug APK。
+可安装的签名 APK 与 SHA-256 校验文件会附在本仓库的
+[GitHub Releases](../../releases) 中。请留意版本标签与说明：Pre-release
+用于测试，稳定版则已经通过文档规定的“准确附件真机验收门”。
 
 ## 从源码构建
 
@@ -59,7 +63,8 @@ Mora 使用 `commonmark-java` 解析 Markdown，生成 HTML 后套用受控 CSS�
 - Markdown 中的原始 HTML 会被转义。
 - 渲染器会清理潜在的不安全 URL。
 - JavaScript 只用于 Mora 控制的阅读交互，例如标题跳转和当前章节识别。Markdown 内容无法借由原始 HTML 注入脚本，Mora 也没有向页面暴露 JavaScript Bridge。
-- WebView 内禁用本地文件和 `content://` 访问。
+- WebView 内禁用本地文件、`content://`、文件 URL 跨域和明文网络访问；
+  Mora 自身的阅读导航只允许固定 HTTPS origin。
 - Markdown 引用远程图片时，阅读页面可能连接图片所在服务器，因此 Mora 声明了 Android 联网权限。
 - 点击网页链接会交给系统浏览器处理。
 

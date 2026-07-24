@@ -72,20 +72,17 @@ fun MoraApp(
         ReaderSettingsRepository.save(context, currentPreferences())
     }
 
-    fun openDocument(uri: Uri, canWriteHint: Boolean? = null) {
+    fun openDocument(uri: Uri) {
         readerScrollY = 0
         mode = DocumentMode.READING
-        markdownViewModel.openDocument(context, uri, canWriteHint)
+        markdownViewModel.openDocument(context, uri)
     }
 
     fun acceptIncoming(request: IncomingDocumentRequest) {
         val uri = request.uri
         if (uri != null) {
             DocumentRepository.persistPermission(context, uri, request.grantedFlags)
-            openDocument(
-                uri = uri,
-                canWriteHint = true.takeIf { request.canWriteHint },
-            )
+            openDocument(uri)
         } else {
             readerScrollY = 0
             mode = DocumentMode.READING
@@ -198,10 +195,7 @@ fun MoraApp(
                 onSettings = { showAppearance = true },
             )
         } else {
-            var editorValue by rememberSaveable(
-                state.contentVersion,
-                stateSaver = TextFieldValue.Saver,
-            ) {
+            var editorValue by remember(state.contentVersion) {
                 mutableStateOf(TextFieldValue(state.content))
             }
 

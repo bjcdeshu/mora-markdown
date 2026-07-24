@@ -1,6 +1,7 @@
 package de.unbow.mora.data
 
 import android.content.Context
+import androidx.core.content.edit
 import de.unbow.mora.markdown.ReaderPreferences
 
 object ReaderSettingsRepository {
@@ -26,10 +27,10 @@ object ReaderSettingsRepository {
 
     fun save(context: Context, preferences: ReaderPreferences) {
         context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
-            .edit()
-            .putFloat(fontSizeKey, preferences.fontSizePx)
-            .putFloat(lineHeightKey, preferences.lineHeight)
-            .putFloat(horizontalPaddingKey, preferences.horizontalPaddingPx)
-            .apply()
+            .edit {
+                putFloat(fontSizeKey, preferences.fontSizePx)
+                putFloat(lineHeightKey, preferences.lineHeight)
+                putFloat(horizontalPaddingKey, preferences.horizontalPaddingPx)
+            }
     }
 }

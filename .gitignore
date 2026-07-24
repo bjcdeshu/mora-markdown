@@ -23,6 +23,7 @@ keystore.properties
 signing.properties
 
 # Android packages and signing sidecars
+/dist/
 *.apk
 *.aab
 *.apks

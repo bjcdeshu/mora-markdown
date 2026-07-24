@@ -19,7 +19,13 @@ The current codebase targets:
 - Basic Markdown source editing and a mobile formatting toolbar
 - Reproducible tests, lint, APK builds, and public project documentation
 
-A public release should be cut only after CI passes, the long-term signing key has recoverable independent backups, and the exact signed candidate APK has been validated on real devices.
+The `v0.2.0-rc.1` build is the first public signed candidate. It may be published
+as a clearly labeled Pre-release after automated build and signing checks so that
+real-device feedback can be collected from one exact downloadable APK.
+
+The stable `v0.2.0` release should be cut only after CI passes, the long-term
+signing key has recoverable independent backups, and the exact signed asset has
+passed the documented real-device matrix.
 
 ## Next
 
