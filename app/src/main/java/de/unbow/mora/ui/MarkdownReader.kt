@@ -85,6 +85,15 @@ internal data class ReaderPositionMarker(
     val isScrollable: Boolean = false,
 )
 
+internal fun resolveReaderPositionMarkerForPageState(
+    marker: ReaderPositionMarker,
+    pageLoadInProgress: Boolean,
+): ReaderPositionMarker = if (pageLoadInProgress) {
+    ReaderPositionMarker()
+} else {
+    marker
+}
+
 internal fun calculateReaderPositionMarker(
     offset: Int,
     range: Int,
@@ -596,7 +605,10 @@ private class MoraReaderWebView(context: Context) : WebView(context) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            if (accessibilityManager?.isTouchExplorationEnabled == true) {
+            if (
+                pageLoadInProgress ||
+                accessibilityManager?.isTouchExplorationEnabled == true
+            ) {
                 return super.onTouchEvent(event)
             }
 
@@ -698,6 +710,23 @@ private class MoraReaderWebView(context: Context) : WebView(context) {
     }
 
     private fun refreshReadingPositionMarkerGeometry(revealIdleIfNew: Boolean) {
+        if (pageLoadInProgress) {
+            val hiddenMarker = resolveReaderPositionMarkerForPageState(
+                marker = readingPositionMarker,
+                pageLoadInProgress = true,
+            )
+            if (
+                readingPositionMarker.isScrollable ||
+                readingPositionMarkerAlpha != 0f
+            ) {
+                readingPositionMarker = hiddenMarker
+                readingPositionMarkerAlpha = 0f
+                updateSystemGestureExclusion()
+                postInvalidateOnAnimation()
+            }
+            return
+        }
+
         val windowInsets = ViewCompat.getRootWindowInsets(this)?.getInsets(
             WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
         )
@@ -866,11 +895,6 @@ private class MoraReaderWebViewClient(
             view.scrollTo(0, restoreY)
             readerView.onToolbarVisibilityChanged(true)
             readerView.controller?.requestCurrentHeading()
-            readerView.postOnAnimation {
-                if (readerView.isCurrentPageGeneration(generation)) {
-                    readerView.updateReadingPositionMarkerIdle()
-                }
-            }
             readerView.postDelayed(
                 { readerView.completePageRestore(generation) },
                 100,

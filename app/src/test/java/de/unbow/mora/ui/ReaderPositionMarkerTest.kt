@@ -16,6 +16,25 @@ class ReaderPositionMarkerTest {
     }
 
     @Test
+    fun pageLoadForcesMarkerHiddenUntilRestoreCompletes() {
+        val scrollableMarker = marker(range = 1_000, extent = 100)
+
+        assertFalse(
+            resolveReaderPositionMarkerForPageState(
+                marker = scrollableMarker,
+                pageLoadInProgress = true,
+            ).isScrollable,
+        )
+        assertEquals(
+            scrollableMarker,
+            resolveReaderPositionMarkerForPageState(
+                marker = scrollableMarker,
+                pageLoadInProgress = false,
+            ),
+        )
+    }
+
+    @Test
     fun thumbHeightIsProportionalAndClampedToMinimumAndMaximum() {
         val proportional = marker(
             range = 1_000,
