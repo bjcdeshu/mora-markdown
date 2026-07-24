@@ -78,6 +78,7 @@ app/src/main/java/de/unbow/mora/
 Android 外壳使用 Jetpack Compose 与 Material 3；阅读链路为 CommonMark → HTML/CSS → WebView，编辑器为原生 Compose 源码编辑器。
 
 当前发布基线、验证门槛与发布边界记录在 [PROJECT_STATUS.md](PROJECT_STATUS.md)。
+签名候选版、真机验证和正式发布流程见 [docs/RELEASING.md](docs/RELEASING.md)。
 
 ## 参与贡献
 

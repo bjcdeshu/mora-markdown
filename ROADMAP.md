@@ -19,7 +19,7 @@ The current codebase targets:
 - Basic Markdown source editing and a mobile formatting toolbar
 - Reproducible tests, lint, APK builds, and public project documentation
 
-A public release should be cut only after CI passes and the APK has been validated on real devices.
+A public release should be cut only after CI passes, the long-term signing key has recoverable independent backups, and the exact signed candidate APK has been validated on real devices.
 
 ## Next
 

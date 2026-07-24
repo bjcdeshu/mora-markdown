@@ -21,6 +21,7 @@ First public release target.
 - CommonMark rendering with tables, strikethrough, and task lists.
 - Android Storage Access Framework open, create, save, and persisted URI permissions.
 - Public-repository documentation, contribution guidance, issue templates, and Android CI.
+- Verified signed-candidate and tag-triggered draft-release automation with signing secrets isolated from normal CI.
 
 ### Changed
 

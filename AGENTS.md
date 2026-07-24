@@ -8,6 +8,8 @@ Before changing code, read `README.md`, `ROADMAP.md`, `PROJECT_STATUS.md`, and t
 
 `docs/PRODUCT_SPEC.md` contains early product and architecture exploration. When it differs from the implemented code, roadmap, or project status, treat those current sources as authoritative; do not implement the older proposal as a backlog by default.
 
+Read `docs/RELEASING.md` before changing versions, signing, workflows, tags, or GitHub Releases.
+
 ## Product contract
 
 Mora is a quiet, local-first, reading-first Android Markdown reader with light editing.
@@ -42,6 +44,8 @@ On macOS or Linux, run:
 
 The expected debug APK is `app/build/outputs/apk/debug/app-debug.apk`.
 
+Release builds require all four signing environment variables documented in `docs/RELEASING.md`. Missing signing material must fail the build; never weaken that guard or allow an unsigned release APK to be mistaken for a candidate.
+
 ## Change discipline
 
 - Keep changes focused and add tests for behavior that can be verified reliably.
@@ -53,4 +57,10 @@ The expected debug APK is `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Release boundary
 
-Normal development may produce debug APKs and draft pull requests. Do not merge `main`, create tags or GitHub Releases, add an automatic publishing workflow, or generate/configure a long-term signing key unless the maintainer explicitly authorizes that release step. Never commit signing material or credentials.
+Normal development may produce debug APKs, draft pull requests, and—after release infrastructure is configured—manually dispatched signed candidates from `main`.
+
+- Never commit signing material, passwords, or exported secrets.
+- Keep the long-term key outside the repository with the recoverable backups described in `docs/RELEASING.md`.
+- Do not create or move a release tag until the manually dispatched signed candidate has passed the documented real-device checks and the maintainer explicitly approves the tag.
+- A tag-triggered workflow rebuilds the APK and may create a draft pre-release. Treat that attachment as a new candidate: repeat the real-device gate on the exact draft asset before the maintainer decides whether to publish it.
+- Do not make unrelated product changes during release preparation.
