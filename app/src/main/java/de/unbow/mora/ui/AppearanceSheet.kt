@@ -18,9 +18,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,7 +61,7 @@ internal fun AppearanceSheet(
             )
             SettingSlider(
                 title = "行高",
-                valueLabel = String.format(Locale.getDefault(), "%.2f", lineHeight),
+                valueLabel = String.format(LocalLocale.current.platformLocale, "%.2f", lineHeight),
                 value = lineHeight,
                 range = 1.5f..2.1f,
                 steps = 11,

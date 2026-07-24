@@ -34,8 +34,8 @@ Installable APKs will be attached to this repository's [GitHub Releases](../../r
 
 Requirements:
 
-- JDK 17
-- Android SDK 37
+- JDK 17 or newer (Android Studio's bundled runtime is supported)
+- Android SDK 36
 - A recent Android Studio version compatible with Android Gradle Plugin 9.3
 
 Clone the repository and run:
@@ -76,6 +76,8 @@ app/src/main/java/de/unbow/mora/
 ```
 
 The Android shell uses Jetpack Compose and Material 3. Reading uses CommonMark → HTML/CSS → WebView; editing uses a native Compose source editor.
+
+The current release baseline, validation gate, and release boundaries are recorded in [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
 ## Contributing
 
