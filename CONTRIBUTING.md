@@ -13,7 +13,7 @@ Vaults, backlinks, graph views, built-in cloud sync, accounts, and plugin system
 
 ## Development setup
 
-You need JDK 17 and Android SDK 37. Then run:
+You need JDK 17 or newer (Android Studio's bundled runtime is supported) and Android SDK 36. Then run:
 
 ```bash
 ./gradlew testDebugUnitTest lintDebug assembleDebug

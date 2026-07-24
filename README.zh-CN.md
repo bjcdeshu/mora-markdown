@@ -34,8 +34,8 @@ Mora 不准备成为知识库工作区。Vault、双链、关系图谱、内置�
 
 需要：
 
-- JDK 17
-- Android SDK 37
+- JDK 17 或更新版本（可直接使用 Android Studio 自带运行时）
+- Android SDK 36
 - 兼容 Android Gradle Plugin 9.3 的较新版本 Android Studio
 
 克隆仓库后运行：
@@ -76,6 +76,8 @@ app/src/main/java/de/unbow/mora/
 ```
 
 Android 外壳使用 Jetpack Compose 与 Material 3；阅读链路为 CommonMark → HTML/CSS → WebView，编辑器为原生 Compose 源码编辑器。
+
+当前发布基线、验证门槛与发布边界记录在 [PROJECT_STATUS.md](PROJECT_STATUS.md)。
 
 ## 参与贡献
 

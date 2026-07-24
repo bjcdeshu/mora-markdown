@@ -22,6 +22,16 @@ First public release target.
 - Android Storage Access Framework open, create, save, and persisted URI permissions.
 - Public-repository documentation, contribution guidance, issue templates, and Android CI.
 
+### Changed
+
+- Standardized local and CI builds on the stable Android 16 SDK (API 36) while retaining Android 8.0 (API 26) as the minimum supported version.
+- Normalized the Windows Gradle launcher so fresh clones remain clean under the repository's line-ending rules.
+
+### Fixed
+
+- Kept navigation-bar icons readable on Android 8.0 while using light-navigation-bar styling only where the platform supports it.
+- Made reader-setting number formatting react to locale changes in Compose.
+
 ### Security
 
 - Raw Markdown HTML is escaped and potentially unsafe URLs are sanitized.
