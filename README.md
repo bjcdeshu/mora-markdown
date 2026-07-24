@@ -8,7 +8,9 @@ Mora is built around one simple workflow: open a standard Markdown file, read it
 
 The project is intentionally document-first rather than vault-first. There is no account, proprietary document format, telemetry, or cloud service.
 
-> Mora v0.2.0 is the first public release target. The project is still young; please report device- and file-provider-specific issues through GitHub Issues.
+> Mora v0.2.0 is the first stable release target. Signed `-rc` builds are public
+> test candidates and may still be awaiting the complete real-device matrix;
+> please report device- and file-provider-specific issues through GitHub Issues.
 
 ## Highlights
 
@@ -28,7 +30,10 @@ Mora is not trying to become a knowledge workspace. Vaults, backlinks, graph vie
 
 ## Download
 
-Installable APKs will be attached to this repository's [GitHub Releases](../../releases). Until a release is published, build the debug APK from source.
+Signed installable APKs and their SHA-256 sidecars are attached to this
+repository's [GitHub Releases](../../releases). Read the release label and notes:
+Pre-release candidates are intended for testing, while a stable release has passed
+the documented exact-asset device gate.
 
 ## Build from source
 
@@ -59,7 +64,9 @@ Markdown is parsed with `commonmark-java`, rendered to HTML, styled with a contr
 - Raw HTML in Markdown is escaped.
 - Potentially unsafe URLs are sanitized by the renderer.
 - JavaScript is enabled only for Mora-controlled reader interactions, such as heading navigation and current-section detection. Markdown content cannot inject script through raw HTML, and Mora exposes no JavaScript bridge.
-- Local file and `content://` access are disabled inside the WebView.
+- Local file, `content://`, file-URL cross-origin, and cleartext access are
+  disabled inside the WebView. Mora-controlled reader navigation is limited to a
+  fixed HTTPS origin.
 - Remote images referenced by Markdown may connect to their host when the document is rendered. Mora therefore declares Android's internet permission.
 - Tapped web links are handed to the system browser.
 

@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.view.animation.LinearInterpolator
@@ -24,6 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -31,6 +35,9 @@ import de.unbow.mora.markdown.RenderedMarkdown
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.roundToInt
+
+private const val READER_BASE_URL = "https://mora.invalid/"
+private const val READER_BASE_HOST = "mora.invalid"
 
 internal data class SearchResult(
     val active: Int = 0,
@@ -54,6 +61,21 @@ internal fun calculateReaderPositionMarker(
         progress = offset.coerceIn(0, maximumOffset).toFloat() / maximumOffset,
         isScrollable = true,
     )
+}
+
+internal fun isInternalReaderLocation(
+    scheme: String?,
+    host: String?,
+    path: String?,
+): Boolean =
+    scheme.equals("https", ignoreCase = true) &&
+        host.equals(READER_BASE_HOST, ignoreCase = true) &&
+        (path.isNullOrEmpty() || path == "/")
+
+@Suppress("DEPRECATION")
+private fun WebSettings.disableLegacyFileUrlAccess() {
+    allowFileAccessFromFileURLs = false
+    allowUniversalAccessFromFileURLs = false
 }
 
 @Composable
@@ -81,6 +103,7 @@ internal fun MarkdownReader(
             settings.setSupportMultipleWindows(false)
             settings.allowFileAccess = false
             settings.allowContentAccess = false
+            settings.disableLegacyFileUrlAccess()
             settings.domStorageEnabled = false
             settings.loadsImagesAutomatically = true
             isVerticalScrollBarEnabled = false
@@ -91,7 +114,7 @@ internal fun MarkdownReader(
 
     SideEffect {
         webView.onPositionChanged = { uri, position ->
-            runCatching { Uri.parse(uri) }
+            runCatching { uri.toUri() }
                 .onSuccess { onPositionChanged(it, position) }
         }
         webView.onToolbarVisibilityChanged = onToolbarVisibilityChanged
@@ -126,7 +149,7 @@ internal fun MarkdownReader(
             val nextPageKey = ReaderPageKey(
                 documentKey = documentKey,
                 documentUri = documentUri?.toString(),
-                htmlHash = renderedMarkdown.html.hashCode(),
+                html = renderedMarkdown.html,
             )
             if (view.pageKey != nextPageKey) {
                 view.publishPosition()
@@ -135,7 +158,7 @@ internal fun MarkdownReader(
                 view.pendingRestoreY = if (sameDocument) view.scrollY else initialScrollY
                 view.pageKey = nextPageKey
                 view.loadDataWithBaseURL(
-                    "https://app.local/",
+                    READER_BASE_URL,
                     renderedMarkdown.html,
                     "text/html",
                     "utf-8",
@@ -254,7 +277,7 @@ internal class MarkdownReaderController {
 private data class ReaderPageKey(
     val documentKey: Long,
     val documentUri: String?,
-    val htmlHash: Int,
+    val html: String,
 )
 
 private class MoraReaderWebView(context: Context) : WebView(context) {
@@ -394,12 +417,13 @@ private class MoraReaderWebView(context: Context) : WebView(context) {
         invalidate()
     }
 
-    @Suppress("DEPRECATION")
     private fun updateReadingPositionMarkerBounds() {
-        val windowInsets = rootWindowInsets
-        val topInset = windowInsets?.systemWindowInsetTop ?: 0
-        val rightInset = windowInsets?.systemWindowInsetRight ?: 0
-        val bottomInset = windowInsets?.systemWindowInsetBottom ?: 0
+        val windowInsets = ViewCompat.getRootWindowInsets(this)?.getInsets(
+            WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+        )
+        val topInset = windowInsets?.top ?: 0
+        val rightInset = windowInsets?.right ?: 0
+        val bottomInset = windowInsets?.bottom ?: 0
         val viewportTop = scrollY.toFloat()
         val viewportLeft = scrollX.toFloat()
         val trackTop = (viewportTop + topInset + markerVerticalMargin)
@@ -446,7 +470,7 @@ private class MoraReaderWebViewClient(
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
         if (!request.isForMainFrame) return false
         val uri = request.url
-        if (uri.host == "app.local") return false
+        if (isInternalReaderLocation(uri.scheme, uri.host, uri.path)) return false
 
         return if (uri.scheme == "http" || uri.scheme == "https" || uri.scheme == "mailto") {
             runCatching {

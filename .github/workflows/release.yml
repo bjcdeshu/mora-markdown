@@ -27,9 +27,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Confirm release source
         shell: bash
@@ -44,8 +45,8 @@ jobs:
             exit 0
           fi
 
-          [[ "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] || {
-            echo "Release tag must use SemVer and start with v." >&2
+          [[ "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.(0|[1-9][0-9]*))?$ ]] || {
+            echo "Release tag must be a stable vX.Y.Z or numeric vX.Y.Z-rc.N version." >&2
             exit 1
           }
 
@@ -57,18 +58,18 @@ jobs:
           }
 
       - name: Set up JDK 17
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
           cache-disabled: true
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
 
       - name: Install stable Android SDK 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
@@ -131,7 +132,7 @@ jobs:
           TARGET_SDK="$(sed -n "s/^targetSdkVersion:'\([^']*\)'.*/\1/p" <<< "$BADGING")"
 
           [[ "$PACKAGE_NAME" == "de.unbow.mora" ]]
-          [[ "$VERSION_NAME" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]
+          [[ "$VERSION_NAME" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.(0|[1-9][0-9]*))?$ ]]
           [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]]
           [[ "$MIN_SDK" == "26" ]]
           [[ "$TARGET_SDK" == "36" ]]
@@ -205,7 +206,7 @@ jobs:
           echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload signed APK candidate
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.package.outputs.artifact_name }}
           path: |
@@ -214,8 +215,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  create-draft-release:
-    name: Create draft pre-release
+  create-release:
+    name: Create GitHub pre-release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: build-signed
     runs-on: ubuntu-latest
@@ -225,7 +226,7 @@ jobs:
 
     steps:
       - name: Download verified signed APK
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ needs.build-signed.outputs.artifact_name }}
           path: dist
@@ -234,16 +235,35 @@ jobs:
         working-directory: dist
         run: sha256sum --check Mora-v*.apk.sha256
 
-      - name: Create draft pre-release
+      - name: Create GitHub pre-release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
+
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          if [[ "$GITHUB_REF_NAME" =~ -rc\.(0|[1-9][0-9]*)$ ]]; then
+            cat > "$NOTES" <<'EOF'
+          > [!WARNING]
+          > This is a signed public release candidate. Automated tests, lint, package metadata, signing certificate, and checksum verification passed. The complete real-device matrix is still pending; back up important files before editing.
+          >
+          > 这是已签名的公开候选测试版。自动测试、Lint、包信息、签名证书与校验和均已通过，但完整真机矩阵尚未完成；编辑重要文件前请先备份。
+
+          The attached `.sha256` file can be used to verify the exact APK download.
+          EOF
+            RELEASE_FLAGS=(--prerelease)
+          else
+            cat > "$NOTES" <<'EOF'
+          This is a draft signed candidate. Do not publish it as a stable release until the exact attached APK passes Mora's documented real-device gate.
+          EOF
+            RELEASE_FLAGS=(--draft --prerelease)
+          fi
+
           gh release create "$GITHUB_REF_NAME" \
             dist/Mora-v*.apk \
             dist/Mora-v*.apk.sha256 \
-            --draft \
-            --prerelease \
-            --generate-notes \
+            "${RELEASE_FLAGS[@]}" \
+            --notes-file "$NOTES" \
             --title "Mora $GITHUB_REF_NAME" \
             --verify-tag

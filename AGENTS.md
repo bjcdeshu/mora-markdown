@@ -57,10 +57,11 @@ Release builds require all four signing environment variables documented in `doc
 
 ## Release boundary
 
-Normal development may produce debug APKs, draft pull requests, and—after release infrastructure is configured—manually dispatched signed candidates from `main`.
+Normal development may produce debug APKs, draft pull requests, and—after release infrastructure is configured—manually dispatched signed candidates from `main`. An explicitly labeled `-rc.N` tag may publish a signed GitHub Pre-release after the automated gates in `docs/RELEASING.md` pass; it is a test candidate, not a stable release.
 
 - Never commit signing material, passwords, or exported secrets.
 - Keep the long-term key outside the repository with the recoverable backups described in `docs/RELEASING.md`.
-- Do not create or move a release tag until the manually dispatched signed candidate has passed the documented real-device checks and the maintainer explicitly approves the tag.
-- A tag-triggered workflow rebuilds the APK and may create a draft pre-release. Treat that attachment as a new candidate: repeat the real-device gate on the exact draft asset before the maintainer decides whether to publish it.
+- Do not create or move a stable release tag until the signed candidate has passed the documented real-device checks and the maintainer explicitly approves the tag.
+- A release-candidate tag must use the documented `-rc.N` form, remain visibly marked as a Pre-release, and state that the complete real-device matrix is pending.
+- A stable tag-triggered workflow rebuilds the APK and creates a draft pre-release. Treat that attachment as a new candidate: repeat the real-device gate on the exact draft asset before the maintainer decides whether to publish it.
 - Do not make unrelated product changes during release preparation.

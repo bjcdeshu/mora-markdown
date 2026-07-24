@@ -19,11 +19,9 @@ object DocumentRepository {
         val canWrite: Boolean,
     )
 
-    @Suppress("UNUSED_PARAMETER")
     suspend fun read(
         context: Context,
         uri: Uri,
-        canWriteHint: Boolean? = null,
     ): LoadedDocument = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         val content = resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
@@ -31,7 +29,7 @@ object DocumentRepository {
         }?.removePrefix("\uFEFF") ?: error("文件没有提供可读取的内容")
 
         LoadedDocument(
-            name = displayName(context, uri) ?: "文档.md",
+            name = queryDisplayName(context, uri) ?: "文档.md",
             content = content,
             canWrite = canWrite(context, uri),
         )
@@ -51,7 +49,11 @@ object DocumentRepository {
         }
     }
 
-    fun displayName(context: Context, uri: Uri): String? {
+    suspend fun displayName(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
+        queryDisplayName(context, uri)
+    }
+
+    private fun queryDisplayName(context: Context, uri: Uri): String? {
         return runCatching {
             context.contentResolver.query(
                 uri,

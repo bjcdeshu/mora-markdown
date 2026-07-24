@@ -33,7 +33,8 @@ Mora reads files selected by the user or delegated by another Android app. It do
 - Raw HTML is escaped during rendering.
 - Potentially unsafe URLs are sanitized by the Markdown renderer.
 - JavaScript is enabled for controlled reader interactions only; Mora does not expose a JavaScript bridge to document content.
-- WebView local-file and `content://` access are disabled.
+- WebView local-file, `content://`, file-URL cross-origin, and cleartext access
+  are disabled; Mora's internal reader origin is fixed and allowlisted.
 - External links open in the system browser.
 - Remote images may make network requests to their original hosts.
 

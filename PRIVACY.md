@@ -17,7 +17,8 @@ Mora requests access through Android's Storage Access Framework and may retain a
 
 ## Network access
 
-Mora does not send documents or usage data to a Mora server.
+Mora does not send documents or usage data to a Mora server. Cleartext HTTP
+traffic is disabled for the app.
 
 The app declares Android's internet permission because a Markdown document can reference remote images. Opening such a document may request those images directly from their hosts. Those hosts can receive normal network information such as your IP address and request metadata. Avoid opening untrusted remote images when this is a concern.
 
@@ -29,7 +30,7 @@ JavaScript is enabled inside the reader WebView only for Mora-controlled interac
 
 ## Backups
 
-Mora disables Android backup for its private app data. Recent-document metadata, reading positions, and reader preferences are therefore not intentionally copied into Android cloud backup. The original documents remain controlled by their file provider and are never copied into Mora's private storage as a cloud-sync feature.
+Mora excludes its private app data from Android cloud backup and device-to-device transfer. Recent-document metadata, reading positions, and reader preferences are therefore not intentionally copied through Android's backup or migration systems. The original documents remain controlled by their file provider and are never copied into Mora's private storage as a cloud-sync feature.
 
 ## Changes
 
