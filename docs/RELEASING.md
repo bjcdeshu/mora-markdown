@@ -1,34 +1,28 @@
 # Mora Release Guide
 
-Mora uses one long-term Android app-signing key for every public APK. Losing that key or its passwords prevents existing users from installing future GitHub builds as updates. Treat this document as a release gate, not as a convenience checklist.
+Mora uses one long-term Android app-signing key for every public APK. Losing that
+key or its passwords prevents existing users from installing future GitHub builds
+as updates. Treat this document as a release gate, not as a convenience checklist.
 
-The first stable target is `v0.3.1`. Stable v0.2.0 was superseded before
-publication; signed `v0.2.0-rc.1` remains a historical public Pre-release.
-The tagged v0.3.0 candidate failed its hidden Draft exact-asset device gate and
-must remain unpublished. v0.3.1 will not use a public release candidate. Its
-protected `main` candidate and its separately rebuilt hidden Draft attachment
-must each pass the complete exact-asset gate before the same Draft is made public
-as stable.
+Stable v0.3.2 uses one exact signed candidate and one short current-device smoke
+session:
 
-## v0.3.1 publication path
+```text
+Pull-request and final main CI green
+→ create annotated v0.3.2 tag on that final main commit
+→ tag workflow creates a signed hidden Draft Pre-release
+→ independently verify that exact Draft APK once
+→ run one short smoke session on one current Android device
+→ edit the same Draft to stable/latest
+→ redownload the public attachment and confirm SHA-256 is unchanged
+```
 
-1. Merge only reviewed pull requests with green CI.
-2. Before building the candidate, finalize `versionCode`, `versionName`, and the
-   dated `CHANGELOG.md` heading in a release-finalization pull request. Merge it,
-   then confirm `main` CI passes on that resulting commit.
-3. Manually run **Signed Android release** from that exact `main` commit. Download
-   its private Actions APK and SHA-256 sidecar, independently verify identity, and
-   run the complete real-device matrix on that exact APK.
-4. Record the commit, APK SHA-256, devices, Android versions, file providers, and
-   results. An explicit maintainer approval is required before tagging.
-5. Create annotated stable tag `v0.3.1` on the same tested commit. The tag workflow
-   rebuilds and creates a hidden Draft Pre-release; it does not publish it.
-6. Download that exact Draft APK and sidecar. Repeat all identity checks and the
-   complete real-device matrix because this is a new build. Record a second
-   explicit maintainer approval.
-7. Edit that same GitHub Release to `draft=false`, `prerelease=false`, and latest.
-   Do not move the tag or replace either attachment. Redownload the public APK and
-   confirm its SHA-256 is identical to the approved Draft APK.
+The v0.3.2 publication path uses no separate protected manual candidate and no
+second full device matrix. Pull-request and `main` CI already exercise the
+minified Release pipeline with an ephemeral non-release key. The retained manual
+dispatch can produce a protected signed Actions artifact for another explicitly
+approved purpose, but it is not used for v0.3.2 and creates no GitHub Release; only
+the tag-triggered run creates the distributable v0.3.2 Draft candidate.
 
 ## Blocked v0.3.0 record
 
@@ -45,11 +39,14 @@ than 4.
 ## Safety model
 
 - The private keystore and passwords never enter Git.
-- Normal pull-request and `main` CI never receive signing secrets.
+- Normal pull-request and `main` CI never receive the protected release keystore
+  or its credentials.
+- Their runner-generated validation key exists for one job only, signs no uploaded
+  artifact, and must never be described as a release candidate.
 - The `release-signing` GitHub Environment holds the automation copy only.
 - GitHub Secrets are not a backup and cannot be read back.
 - Keep at least two independently stored encrypted keystore backups and keep the passwords in a password manager or equivalent recovery system.
-- Restore-test each backup before the first public tag.
+- Restore-test the backup set periodically and before any signing-identity change.
 - Commit only the public certificate and its SHA-256 fingerprint; never commit the private key or keystore.
 
 The GitHub and future Google Play builds must use the same app-signing identity if users should be able to move between those distribution channels without uninstalling.
@@ -78,62 +75,84 @@ Mora's public release certificate is versioned at `docs/mora-release-certificate
 
 ## Local validation
 
-Debug validation does not need signing material:
+The normal local gate does not need signing material:
 
 ```powershell
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug
 ```
 
-A local signed candidate uses the four environment variables above:
-
-```powershell
-.\gradlew.bat --no-configuration-cache --no-build-cache --no-daemon testDebugUnitTest lintRelease assembleRelease
-```
-
-The expected output is:
+The Debug APK is written to:
 
 ```text
-app/build/outputs/apk/release/app-release.apk
+app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Before sharing it, verify the APK with Build Tools 36:
+Pull-request and `main` CI repeat that Debug gate and then run
+`lintRelease assembleRelease` with a runner-generated one-run key. The job checks
+that R8, resource shrinking, mapping generation, Release packaging, and signature
+verification complete. It confirms that this temporary signer does not equal
+Mora's registered certificate, deletes the key and Release APK, and uploads only
+the Debug APK.
+
+That ephemeral Release build is a build-time validation artifact, not an exact
+candidate. It cannot update an officially signed Mora installation and must not be
+distributed.
+
+If a maintainer performs an additional local Release build, the four signing
+environment variables above remain mandatory:
 
 ```powershell
-$sdk = $env:ANDROID_SDK_ROOT
-& "$sdk\build-tools\36.0.0\apksigner.bat" verify --verbose --print-certs -Werr app\build\outputs\apk\release\app-release.apk
-& "$sdk\build-tools\36.0.0\aapt.exe" dump badging app\build\outputs\apk\release\app-release.apk
-Get-FileHash app\build\outputs\apk\release\app-release.apk -Algorithm SHA256
+.\gradlew.bat --no-configuration-cache --no-build-cache --no-daemon lintRelease assembleRelease
 ```
 
-The package must be `de.unbow.mora`, `minSdk` must be 26, `targetSdk` must be 36,
-and the signer certificate SHA-256 must equal the registered fingerprint. For the
-v0.3.1 stable path, `versionName` must be `0.3.1` and `versionCode` must be `5`.
-The downloaded `.sha256` sidecar must verify the exact APK before and after each
+Do not weaken `verifyReleaseSigningEnvironment`, add an unsigned fallback, or use
+a locally rebuilt APK in place of the tag workflow's Draft attachment.
+
+## Pre-tag gate
+
+Before creating `v0.3.2`, confirm:
+
+1. the release pull request is reviewed and its Android CI job is green;
+2. final `main` CI is green on the exact commit to tag;
+3. `versionName` is `0.3.2` and `versionCode` is `6`;
+4. `CHANGELOG.md` contains exactly one dated `## [0.3.2] - YYYY-MM-DD` heading;
+5. all intended code, launcher resources, screenshots, and documentation are in
+   that commit;
+6. there are no uncommitted or unpushed release changes;
+7. the repository's `v*` tag ruleset prevents deletion and non-fast-forward
+   updates.
+
+Create and push the annotated tag on that exact `main` commit:
+
+```powershell
+git tag -a v0.3.2 -m "Mora v0.3.2"
+git push origin v0.3.2
+```
+
+Never create the tag speculatively. If code must change after it is pushed, do not
+move or replace the tag; stop v0.3.2 publication and prepare a later version.
+
+## Tag workflow and hidden Draft
+
+The `v0.3.2` push starts **Signed Android release**. The workflow:
+
+1. checks that the tag is valid and its commit is contained in `main`;
+2. enters the protected `release-signing` Environment;
+3. runs unit tests, Release lint, R8, resource shrinking, and the Release build;
+4. verifies package metadata, minimum and target SDKs, signing validity, and the
+   registered certificate fingerprint;
+5. produces `Mora-v0.3.2.apk` and `Mora-v0.3.2.apk.sha256`;
+6. retains the official R8 mapping output as a private Actions artifact, not a
+   public Release attachment;
+7. creates a hidden Draft Pre-release for the tag.
+
+The Draft APK is the only signed candidate that receives the v0.3.2 identity and
 device gate.
-
-## Signed candidate
-
-After release infrastructure and the intended version are on `main`, finalize the
-dated changelog through normal review and CI. Only then run **Signed Android
-release** manually from the exact `main` commit selected for the candidate. Do
-not make a release-metadata commit between this build and its stable tag.
-
-The workflow:
-
-1. receives signing material only after entering the `release-signing` Environment;
-2. runs unit tests, Release lint, and the Release build;
-3. verifies package metadata, signing validity, and the fixed certificate fingerprint;
-4. uploads an APK and SHA-256 sidecar as a 30-day Actions artifact;
-5. creates no tag and no GitHub Release.
-
-Download that artifact and its sidecar, verify them independently, and record its
-SHA-256 before device testing. For v0.3.1, this protected Actions artifact is the
-first exact-asset gate and must complete the full matrix before any tag is created.
 
 ## Public release candidate
 
 This optional path is retained for a future version that explicitly needs public
-testing. It is not used for v0.3.1.
+testing. It is not used for v0.3.2.
 
 A release-candidate tag uses `v<major>.<minor>.<patch>-rc.<number>`. Before pushing
 one:
@@ -147,95 +166,114 @@ one:
 The tag workflow rebuilds the APK with the protected long-term key, verifies its
 package metadata and certificate, verifies the downloaded workflow artifact, and
 publishes an explicitly labeled public Pre-release with the APK and SHA-256
-sidecar. The release notes must state in both English and Chinese that the complete
-real-device matrix is pending and advise users to back up important files before
-editing.
+sidecar. The release notes must state in both English and Chinese that real-device
+testing is pending and advise users to back up important files before editing.
 
 Publishing an RC makes a test build easy to download; it does not satisfy or weaken
 the stable-release gate. Download the exact Release attachment, independently
 repeat its checksum, signer, and package-metadata checks, and use that same APK for
-the device matrix.
+any declared device test.
 
-## Real-device gate
+## Verify the exact Draft APK
 
-Test the exact downloaded candidate, not a later local rebuild.
+Wait for the tag-triggered **Signed Android release** workflow to succeed. Download
+the APK and sidecar from the hidden Draft Release, not from a local rebuild and not
+only from the intermediate Actions artifact.
 
-- Android 8.0 / API 26: install, launch, open, edit, save, and reopen a Markdown file.
-- A current Android version: repeat the same flow.
-- Open a `.md` file from a file manager and from an external sharing app while Mora is both closed and already running.
-- Verify read-only input leads to Save As rather than silent failure.
-- Verify recent documents, reading-position restoration, table of contents,
-  search, and an orientation change.
-- Use both long and short documents in portrait and landscape. The right-edge
-  progress thumb must stay hidden for a short document; for a long document it
-  must remain subtle while idle, become clearer while scrolling, drag without
-  jumping, and reach 0%, 50%, and 100%. Confirm its local right-edge drag area
-  does not block system Back outside the thumb.
-- Verify English and Simplified Chinese follow the selected device language. On
-  Android 13+, also switch Mora through the system per-app language page and
-  confirm document text and filenames are unchanged. Confirm the settings sheet
-  closes before the system page opens and that returning or an unavailable system
-  language activity does not crash Mora.
-- Force an Activity recreation through a language change while editing and while
-  overlays are open. Unsaved text, search, table of contents, pending confirmation
-  dialogs, and the current reading position must remain intact.
-- Verify system, light, dark, default-dark, and pure-black appearance behavior.
-  Include Android 12+ dynamic color, system-light with Mora-dark, and system-dark
-  with Mora-light. Status/navigation-bar icons must remain readable after restart;
-  the pure-black Reader surface must be `#000000`, and theme changes must not move
-  the reading position.
-- Switch among Indigo, Pine, and Night launcher palettes. Confirm Mora remains
-  launchable after every switch, process restart, cleared app data, and an
-  in-place upgrade from `v0.2.0-rc.1`. Verify launch from Recents and with the
-  system themed-icon option both on and off; record OEM cache delays or shortcut
-  recreation in the release notes.
-- On a predictive-Back-capable current Android device, verify a clean document
-  reveals Home, cancellation keeps it open, and Home then previews and returns to
-  the system launcher. Search, table of contents, Reader/App sheets, and dialogs
-  must close before the document. Repeat with unsaved edits and confirm discard
-  remains explicit. Repeat the same routes with three-button navigation.
-- At 200% English system font size, check Home, search, the editor formatting bar,
-  and all application and Reader settings for clipping or inaccessible controls.
-- Recheck file-manager and sharing-app opening after launcher-icon switching to
-  confirm activity aliases did not change external `VIEW`, `EDIT`, or `SEND`
-  entry behavior.
-- Confirm a Debug-signed preview must be uninstalled before the first Release-signed install.
-- Reinstall the same candidate over itself without losing access to recent documents.
-- Check the final APK SHA-256 and certificate fingerprint again after download.
+Verify the sidecar from the directory containing both files:
 
-Record device models, Android versions, file providers, failures, and the approved
-APK SHA-256 in the release pull request or the release-tracking issue.
+```powershell
+$apk = "Mora-v0.3.2.apk"
+$sidecar = "Mora-v0.3.2.apk.sha256"
+$expected = ((Get-Content -LiteralPath $sidecar -Raw).Trim() -split "\s+")[0]
+$actual = (Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash
+if ($actual -ne $expected.ToUpperInvariant()) {
+    throw "Release APK SHA-256 does not match its sidecar."
+}
+```
 
-## Stable version and tag gate
+Then use Android Build Tools 36:
 
-Before tagging a stable version:
+```powershell
+$sdk = if ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } else { $env:ANDROID_HOME }
+& "$sdk\build-tools\36.0.0\apksigner.bat" verify --verbose --print-certs -Werr $apk
+& "$sdk\build-tools\36.0.0\aapt.exe" dump badging $apk
+```
 
-1. confirm the exact protected `main` candidate passed the complete identity and
-   real-device gate;
-2. confirm `versionCode` was incremented for this distributed build;
-3. confirm `versionName` equals the tag without its leading `v`;
-4. confirm the matching `CHANGELOG.md` heading was dated before the candidate
-   build and contains no `Unreleased` marker;
-5. confirm no commit has been added to the tested `main` commit;
-6. confirm the repository has an active `v*` tag ruleset that prevents deletion and non-fast-forward updates;
-7. obtain explicit maintainer approval;
-8. create an annotated `v<versionName>` tag on the exact tested commit in `main`.
+Confirm all of the following before installation:
 
-Pushing a stable tag runs the same signed build and verification path. Only a tag
-push—not a manually selected tag ref—may invoke the release job. Unlike an `-rc.`
-tag, a stable tag creates a draft pre-release with the verified APK and checksum;
-it does not make that draft public.
+- package: `de.unbow.mora`;
+- `versionName`: `0.3.2`;
+- `versionCode`: `6`;
+- `minSdk`: `26`;
+- `targetSdk`: `36`;
+- signer certificate SHA-256 equals
+  `docs/mora-release-certificate.sha256`;
+- APK SHA-256 equals the sidecar and is recorded for the release report.
 
-The tag workflow rebuilds the APK, so its attachment is not assumed to be byte-for-byte identical to the manually dispatched candidate. Download the exact draft attachment, independently repeat the checksum, signer, and package-metadata checks, and run the complete real-device gate again. Publish the draft only after that exact APK passes and the maintainer explicitly approves publication.
+Do not print or record private-key material, passwords, or protected secret values.
+The certificate fingerprint and APK checksum are public integrity data.
 
-Stable publication means editing that same Release to remove both Draft and
-Pre-release status and mark it latest. Do not move the tag, replace the APK, or
-replace its sidecar after approval. Redownload the public APK once more and verify
-that its SHA-256 still matches the approved Draft attachment.
+## One-device smoke gate
+
+Use the exact verified Draft APK on one current Android phone. Keep this to a
+short, release-focused session:
+
+1. when possible, install it as an in-place update over public v0.3.1 and confirm
+   recent-document state remains available;
+2. launch Home and open a real, sanitized, long Markdown document;
+3. scroll, use the table of contents and search, return Home, reopen from Recents,
+   and confirm reading position restoration;
+4. rotate to landscape, open Reader Appearance, and reach all three sliders and
+   Restore defaults by display or scrolling without system-navigation overlap;
+5. edit one small passage, save to the original writable file, reopen it, and
+   confirm the exact edit;
+6. trigger Save rapidly and edit once during a save; confirm there is only one
+   active write for that document and a later edit remains dirty;
+7. complete and cancel predictive Back without a crash, flash, state loss, or an
+   incorrect destination;
+8. switch through Indigo, Pine, and Night and confirm every launcher alias still
+   launches Mora.
+
+The following are useful future coverage but do not block v0.3.2:
+
+- Android 8 and every OEM or file provider;
+- a complete 200% font-size and accessibility matrix;
+- every theme, orientation, and navigation-mode combination;
+- automatic layout reflow of an off-screen App Settings language row during the
+  system's predictive-Back scale transform;
+- any absolute APK-size target, provided shrinking is effective and behavior is
+  correct.
+
+Record the device model, Android version, file provider, upgrade result, failures,
+APK byte size, and approved Draft SHA-256.
+
+## Publish the same Draft
+
+Only after every blocking check above passes:
+
+1. replace the placeholder Draft notes with concise English and Chinese v0.3.2
+   release notes;
+2. edit that same Release to `draft=false`, `prerelease=false`, and latest;
+3. leave the tag, APK, and sidecar unchanged.
+
+Do not delete and recreate the Release, move the tag, or replace either attachment.
+
+After publication, download the public APK and sidecar again. Verify the sidecar
+and confirm that the public APK SHA-256 is identical to the approved hidden Draft
+APK. Also confirm that the public Release is latest and that both attachments are
+downloadable.
 
 ## Recovery and rotation
 
-- Do not rotate the app-signing key after a public GitHub release unless Android's supported key-upgrade path and every distribution channel have been reviewed.
-- If the key may have leaked before the first public release, revoke the candidate identity, remove its GitHub secrets, generate a new key, update the registered fingerprint, and rebuild.
-- If the key may have leaked after release, stop publishing and document the incident before taking action.
-- If a backup cannot be restored, do not publish. Repair the backup set while the current key is still available.
+- A transient infrastructure failure may be rerun against the same immutable tag.
+- If the tag workflow requires a code change, stop v0.3.2 publication and prepare a
+  later version. Never force-update the tag.
+- If a blocking defect appears after public release, keep the attachment and tag
+  unchanged and fix it in a later version.
+- Do not rotate the app-signing key unless Android's supported key-upgrade path and
+  every distribution channel have been reviewed.
+- If the key may have leaked, stop publishing, restrict the affected automation,
+  and document the incident before taking action.
+- If a backup cannot be restored, do not publish. Repair the backup set while the
+  current key is still available.

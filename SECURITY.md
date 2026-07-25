@@ -2,19 +2,24 @@
 
 ## Supported versions
 
-Security fixes are applied to the latest public Mora release. Pre-release builds and older versions may be used to reproduce a report, but are not guaranteed to receive patches.
+Security fixes are applied to the latest public stable Mora release. Pre-release
+builds and older versions may be used to reproduce a report, but are not
+guaranteed to receive patches.
 
 ## Reporting a vulnerability
 
 Please do not disclose a suspected vulnerability in a public Issue, Discussion, or pull request.
 
-Use GitHub's private vulnerability reporting for this repository:
+Private vulnerability reporting is enabled for this repository. Use it instead of
+a public Issue:
 
 1. Open the repository's **Security** tab.
 2. Choose **Advisories**.
 3. Select **Report a vulnerability**.
 
-If the private reporting button is unavailable, open a public issue containing no vulnerability details and ask the maintainer to establish a private reporting channel.
+If GitHub does not expose the private reporting button for your account, open a
+public issue containing no vulnerability details and ask the maintainer to
+establish a private reporting channel.
 
 Include:
 
@@ -37,5 +42,22 @@ Mora reads files selected by the user or delegated by another Android app. It do
   are disabled; Mora's internal reader origin is fixed and allowlisted.
 - External links open in the system browser.
 - Remote images may make network requests to their original hosts.
+- Normal saves retain the current writable document URI. Save requests are
+  serialized, and a new destination is requested only for a new document or a
+  read-only source.
 
 Reports that demonstrate a bypass of these boundaries, unintended file access, unsafe intent handling, or destructive save behavior are especially important.
+
+## Verifying release APKs
+
+Every public release APK is accompanied by a `.sha256` sidecar. Verify that
+checksum before installation. Mora's public signing certificate and normalized
+SHA-256 fingerprint are recorded in:
+
+- `docs/mora-release-certificate.pem`
+- `docs/mora-release-certificate.sha256`
+
+Stable release tags are not moved, and approved APK or checksum attachments are
+not replaced. Stable publication requires the public attachment to match the exact
+hidden Draft APK that passed package, version, certificate, checksum, upgrade, and
+device smoke checks.

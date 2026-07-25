@@ -74,10 +74,69 @@ data class DocumentUiState(
     val canWrite: Boolean = false,
     val initialScrollY: Int = 0,
     val isDirty: Boolean = false,
+    val isSaving: Boolean = false,
     val isLoading: Boolean = false,
     val error: DocumentUiError? = null,
     val contentVersion: Long = 0L,
+    val contentRevision: Long = 0L,
 )
+
+internal data class DocumentSaveSnapshot(
+    val requestId: Long,
+    val sessionId: Long,
+    val contentRevision: Long,
+    val content: String,
+)
+
+internal class DocumentSaveCoordinator {
+    private var requestCounter = 0L
+    private val activeSnapshotsBySession = mutableMapOf<Long, DocumentSaveSnapshot>()
+
+    @Synchronized
+    fun tryBegin(
+        sessionId: Long,
+        contentRevision: Long,
+        content: String,
+    ): DocumentSaveSnapshot? {
+        if (activeSnapshotsBySession.containsKey(sessionId)) return null
+        requestCounter += 1
+        return DocumentSaveSnapshot(
+            requestId = requestCounter,
+            sessionId = sessionId,
+            contentRevision = contentRevision,
+            content = content,
+        ).also { activeSnapshotsBySession[sessionId] = it }
+    }
+
+    @Synchronized
+    fun finish(snapshot: DocumentSaveSnapshot) {
+        if (activeSnapshotsBySession[snapshot.sessionId]?.requestId == snapshot.requestId) {
+            activeSnapshotsBySession.remove(snapshot.sessionId)
+        }
+    }
+}
+
+internal fun shouldUseSaveAs(
+    hasUri: Boolean,
+    canWrite: Boolean,
+): Boolean = !hasUri || !canWrite
+
+internal fun isSaveResultCurrent(
+    currentSessionId: Long,
+    savedSnapshot: DocumentSaveSnapshot,
+): Boolean = currentSessionId == savedSnapshot.sessionId
+
+internal fun shouldRemainDirtyAfterSave(
+    currentContent: String,
+    currentContentRevision: Long,
+    savedSnapshot: DocumentSaveSnapshot,
+): Boolean {
+    if (currentContentRevision == savedSnapshot.contentRevision) return false
+    return currentContent != savedSnapshot.content
+}
+
+internal fun stateAfterSaveFailure(state: DocumentUiState): DocumentUiState =
+    state.copy(isSaving = false)
 
 class MarkdownViewModel : ViewModel() {
 
@@ -92,7 +151,9 @@ class MarkdownViewModel : ViewModel() {
 
     private var persistedContent: String = ""
     private var versionCounter: Long = 0L
+    private var contentRevisionCounter: Long = 0L
     private var sessionCounter: Long = 0L
+    private val saveCoordinator = DocumentSaveCoordinator()
     private var initialized = false
 
     fun initialize(context: Context) {
@@ -142,6 +203,7 @@ class MarkdownViewModel : ViewModel() {
             nameUsesLocalizedFallback = initialName.usesLocalizedFallback,
             isLoading = true,
             contentVersion = requestVersion,
+            contentRevision = nextContentRevision(),
             initialScrollY = knownPosition,
         )
 
@@ -161,6 +223,7 @@ class MarkdownViewModel : ViewModel() {
                         usesLocalizedFallback = initialName.usesLocalizedFallback,
                     ),
                     contentVersion = nextVersion(),
+                    contentRevision = nextContentRevision(),
                 )
                 return@launch
             }
@@ -186,6 +249,7 @@ class MarkdownViewModel : ViewModel() {
                 isLoading = false,
                 initialScrollY = knownPosition,
                 contentVersion = nextVersion(),
+                contentRevision = nextContentRevision(),
             )
         }
     }
@@ -200,6 +264,7 @@ class MarkdownViewModel : ViewModel() {
             canWrite = false,
             isDirty = true,
             contentVersion = nextVersion(),
+            contentRevision = nextContentRevision(),
         )
     }
 
@@ -213,29 +278,37 @@ class MarkdownViewModel : ViewModel() {
             canWrite = false,
             isDirty = true,
             contentVersion = nextVersion(),
+            contentRevision = nextContentRevision(),
         )
     }
 
     fun updateContent(content: String) {
+        if (content == uiState.content) return
         uiState = uiState.copy(
             content = content,
-            isDirty = uiState.hasDocument &&
-                (uiState.uri == null || content != persistedContent),
+            isDirty = uiState.hasDocument && (
+                uiState.isSaving ||
+                    uiState.uri == null ||
+                    content != persistedContent
+                ),
+            contentRevision = nextContentRevision(),
         )
     }
 
     fun save(context: Context, onResult: (DocumentSaveResult) -> Unit) {
         val stateToSave = uiState
         val uri = stateToSave.uri
-        if (uri == null || !stateToSave.canWrite) {
+        if (shouldUseSaveAs(hasUri = uri != null, canWrite = stateToSave.canWrite)) {
             onResult(DocumentSaveResult.Failed(DocumentFailure.SAVE_AS_REQUIRED))
             return
         }
+        val writableUri = uri ?: return
         saveTo(
             context = context,
-            uri = uri,
+            uri = writableUri,
             sessionId = stateToSave.sessionId,
             contentToSave = stateToSave.content,
+            contentRevision = stateToSave.contentRevision,
             updateDocumentIdentity = false,
             fallbackName = stateToSave.name,
             fallbackIsLocalized = stateToSave.nameUsesLocalizedFallback,
@@ -250,6 +323,7 @@ class MarkdownViewModel : ViewModel() {
             uri = uri,
             sessionId = stateToSave.sessionId,
             contentToSave = stateToSave.content,
+            contentRevision = stateToSave.contentRevision,
             updateDocumentIdentity = true,
             fallbackName = stateToSave.name,
             fallbackIsLocalized = stateToSave.nameUsesLocalizedFallback,
@@ -270,16 +344,32 @@ class MarkdownViewModel : ViewModel() {
         uri: Uri,
         sessionId: Long,
         contentToSave: String,
+        contentRevision: Long,
         updateDocumentIdentity: Boolean,
         fallbackName: String,
         fallbackIsLocalized: Boolean,
         onResult: (DocumentSaveResult) -> Unit,
     ) {
+        val snapshot = saveCoordinator.tryBegin(
+            sessionId = sessionId,
+            contentRevision = contentRevision,
+            content = contentToSave,
+        ) ?: return
+        if (uiState.sessionId != sessionId) {
+            saveCoordinator.finish(snapshot)
+            return
+        }
+        uiState = uiState.copy(isSaving = true)
+
         viewModelScope.launch {
             val failure = try {
-                DocumentRepository.write(context, uri, contentToSave)
+                DocumentRepository.write(context, uri, snapshot.content)
                 null
             } catch (cancelled: CancellationException) {
+                saveCoordinator.finish(snapshot)
+                if (uiState.sessionId == sessionId) {
+                    uiState = uiState.copy(isSaving = false)
+                }
                 throw cancelled
             } catch (error: DocumentAccessException) {
                 error.failure
@@ -287,14 +377,15 @@ class MarkdownViewModel : ViewModel() {
                 DocumentFailure.WRITE_FAILED
             }
 
-            if (uiState.sessionId != sessionId) return@launch
+            saveCoordinator.finish(snapshot)
+            if (!isSaveResultCurrent(uiState.sessionId, snapshot)) return@launch
 
             if (failure != null) {
+                uiState = stateAfterSaveFailure(uiState)
                 onResult(DocumentSaveResult.Failed(failure))
                 return@launch
             }
 
-            persistedContent = contentToSave
             val resolvedName = if (updateDocumentIdentity) {
                 resolveDocumentName(
                     sourceName = DocumentRepository.displayName(context, uri),
@@ -304,6 +395,9 @@ class MarkdownViewModel : ViewModel() {
             } else {
                 null
             }
+            if (!isSaveResultCurrent(uiState.sessionId, snapshot)) return@launch
+
+            persistedContent = snapshot.content
             if (updateDocumentIdentity) {
                 recentDocuments = RecentDocumentsRepository.recordOpened(
                     context = context,
@@ -318,7 +412,12 @@ class MarkdownViewModel : ViewModel() {
                     ?: uiState.nameUsesLocalizedFallback,
                 canWrite = true,
                 initialScrollY = if (updateDocumentIdentity) 0 else uiState.initialScrollY,
-                isDirty = uiState.content != contentToSave,
+                isDirty = shouldRemainDirtyAfterSave(
+                    currentContent = uiState.content,
+                    currentContentRevision = uiState.contentRevision,
+                    savedSnapshot = snapshot,
+                ),
+                isSaving = false,
                 error = null,
             )
 
@@ -341,6 +440,11 @@ class MarkdownViewModel : ViewModel() {
     private fun nextVersion(): Long {
         versionCounter += 1
         return versionCounter
+    }
+
+    private fun nextContentRevision(): Long {
+        contentRevisionCounter += 1
+        return contentRevisionCounter
     }
 
     private fun nextSessionId(): Long {

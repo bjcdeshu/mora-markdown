@@ -23,8 +23,8 @@ android {
         applicationId = "de.unbow.mora"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.3.1"
+        versionCode = 6
+        versionName = "0.3.2"
     }
 
     buildFeatures {
@@ -50,6 +50,12 @@ android {
     buildTypes {
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 

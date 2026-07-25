@@ -50,6 +50,7 @@ import de.unbow.mora.model.DocumentSaveResult
 import de.unbow.mora.model.DocumentUiError
 import de.unbow.mora.model.MarkdownViewModel
 import de.unbow.mora.model.displayDocumentName
+import de.unbow.mora.model.shouldUseSaveAs
 import de.unbow.mora.ui.theme.LocalMoraIsDark
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -73,6 +74,11 @@ internal fun resolveReaderScrollSession(
         scrollY = initialScrollY.coerceAtLeast(0),
     )
 }
+
+internal fun isSaveAsResultCurrent(
+    requestSessionId: Long?,
+    currentSessionId: Long,
+): Boolean = requestSessionId != null && requestSessionId == currentSessionId
 
 @Composable
 fun MoraApp(
@@ -110,6 +116,8 @@ fun MoraApp(
     var showReaderAppearance by rememberSaveable { mutableStateOf(false) }
     var showAppSettings by rememberSaveable { mutableStateOf(false) }
     var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
+    var saveAsRequestSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val saveAsPending = saveAsRequestSessionId == state.sessionId
     var fontSize by rememberSaveable {
         mutableFloatStateOf(storedReaderPreferences.fontSizePx)
     }
@@ -288,7 +296,17 @@ fun MoraApp(
     val createDocument = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/markdown"),
     ) { uri ->
-        uri ?: return@rememberLauncherForActivityResult
+        val requestSessionId = saveAsRequestSessionId
+        saveAsRequestSessionId = null
+        if (
+            uri == null ||
+            !isSaveAsResultCurrent(
+                requestSessionId = requestSessionId,
+                currentSessionId = markdownViewModel.uiState.sessionId,
+            )
+        ) {
+            return@rememberLauncherForActivityResult
+        }
         DocumentRepository.persistPermission(context, uri)
         markdownViewModel.saveAs(context, uri, notifySave)
     }
@@ -418,6 +436,7 @@ fun MoraApp(
                     documentUri = state.uri,
                     name = displayedDocumentName,
                     dirty = state.isDirty,
+                    saving = state.isSaving || saveAsPending,
                     loading = state.isLoading,
                     markdown = state.content,
                     editorValue = editorValue,
@@ -487,15 +506,23 @@ fun MoraApp(
                         showReaderAppearance = true
                     },
                     onSave = {
-                        if (state.uri == null || !state.canWrite) {
-                            createDocument.launch(
-                                normalizedMarkdownName(
-                                    displayedDocumentName,
-                                    untitledFilenameBase,
-                                ),
-                            )
-                        } else {
-                            markdownViewModel.save(context, notifySave)
+                        if (!state.isSaving && !saveAsPending) {
+                            if (
+                                shouldUseSaveAs(
+                                    hasUri = state.uri != null,
+                                    canWrite = state.canWrite,
+                                )
+                            ) {
+                                saveAsRequestSessionId = state.sessionId
+                                createDocument.launch(
+                                    normalizedMarkdownName(
+                                        displayedDocumentName,
+                                        untitledFilenameBase,
+                                    ),
+                                )
+                            } else {
+                                markdownViewModel.save(context, notifySave)
+                            }
                         }
                     },
                     onEditorChanged = { value ->

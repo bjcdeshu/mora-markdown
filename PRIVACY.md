@@ -10,10 +10,19 @@ Mora may process:
 - Files and text shared to Mora by another Android app
 - Recently opened document URIs, display names, timestamps, and reading positions
 - Reader preferences such as font size, line height, and page margins
+- App preferences such as appearance mode, dark-surface style, and launcher icon
 
-Documents remain in the location managed by you and the Android file provider. Recent-document metadata, reading positions, and reader preferences are stored locally in the app's private Android preferences.
+Documents remain in the location managed by you and the Android file provider.
+Recent-document metadata, reading positions, reader preferences, and app
+preferences are stored locally in Mora's private Android preferences.
 
-Mora requests access through Android's Storage Access Framework and may retain a URI permission when the file provider allows it. You can remove that access by clearing Mora's app data, uninstalling Mora, or revoking the relevant permission through Android or the file provider.
+Mora requests access through Android's Storage Access Framework and may retain a
+URI permission when the file provider allows it. A normal save writes directly
+back to the current writable document; a new document or read-only source uses
+Android's Save As flow. Mora does not create a private cloud copy, version history,
+or automatic backup of the document. You can remove retained access by clearing
+Mora's app data, uninstalling Mora, or revoking the relevant permission through
+Android or the file provider.
 
 ## Network access
 
@@ -30,8 +39,15 @@ JavaScript is enabled inside the reader WebView only for Mora-controlled interac
 
 ## Backups
 
-Mora excludes its private app data from Android cloud backup and device-to-device transfer. Recent-document metadata, reading positions, and reader preferences are therefore not intentionally copied through Android's backup or migration systems. The original documents remain controlled by their file provider and are never copied into Mora's private storage as a cloud-sync feature.
+Mora excludes its private app data from Android cloud backup and device-to-device
+transfer. Recent-document metadata, reading positions, reader preferences, and app
+preferences are therefore not intentionally copied through Android's backup or
+migration systems. The original documents remain controlled by their file
+provider and are never copied into Mora's private storage as a cloud-sync feature.
 
 ## Changes
 
-Privacy-relevant behavior will be documented here and in the changelog. A feature that adds telemetry, an account, or a Mora-operated network service would require an explicit policy update; none exists in v0.2.0.
+Privacy-relevant behavior will be documented here and in the changelog. A feature
+that adds telemetry, an account, or a Mora-operated network service would require
+an explicit policy update. Mora v0.3.2 adds none of those features and introduces
+no new data collection.

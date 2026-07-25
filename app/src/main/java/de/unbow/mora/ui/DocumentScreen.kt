@@ -67,6 +67,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -105,6 +107,7 @@ internal fun DocumentScreen(
     documentUri: Uri?,
     name: String,
     dirty: Boolean,
+    saving: Boolean,
     loading: Boolean,
     markdown: String,
     editorValue: TextFieldValue,
@@ -265,6 +268,7 @@ internal fun DocumentScreen(
                 DocumentTopBar(
                     name = name,
                     dirty = dirty,
+                    saving = saving,
                     onBack = ::leaveDocument,
                     onRead = { onModeChanged(DocumentMode.READING) },
                     onSave = onSave,
@@ -450,10 +454,12 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 private fun DocumentTopBar(
     name: String,
     dirty: Boolean,
+    saving: Boolean,
     onBack: () -> Unit,
     onRead: () -> Unit,
     onSave: () -> Unit,
 ) {
+    val savingLabel = stringResource(R.string.saving_document)
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface,
@@ -490,12 +496,24 @@ private fun DocumentTopBar(
                     contentDescription = stringResource(R.string.read_document),
                 )
             }
-            if (dirty) {
-                IconButton(onClick = onSave) {
-                    Icon(
-                        Icons.Outlined.Save,
-                        contentDescription = stringResource(R.string.save_document),
-                    )
+            if (dirty || saving) {
+                IconButton(
+                    onClick = onSave,
+                    enabled = !saving,
+                ) {
+                    if (saving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .semantics { contentDescription = savingLabel },
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            Icons.Outlined.Save,
+                            contentDescription = stringResource(R.string.save_document),
+                        )
+                    }
                 }
             }
         },

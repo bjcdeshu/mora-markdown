@@ -1,2 +1,5 @@
 blank_issues_enabled: false
-contact_links: []
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/bjcdeshu/mora-markdown/security/advisories/new
+    about: Report vulnerabilities privately; do not disclose security details in a public issue.

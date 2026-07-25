@@ -4,9 +4,54 @@ All notable changes to Mora are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-07-25
+
+Focused reliability, package-size, branding, and public-release polish for the
+stable v0.3 line.
+
+### Changed
+
+- Replaced the generic outlined-book launcher artwork with Mora's deep ink-blue
+  and warm-white folded-page mark across adaptive, round, legacy, monochrome, and
+  all three launcher-alias resources.
+- Enabled R8 optimization and resource shrinking for Release APKs while retaining
+  the private mapping as a workflow artifact for future crash diagnosis.
+- Refreshed the bilingual public project surface, current product imagery, release
+  guidance, privacy and security wording, and issue intake for the v0.3.2 target.
+
+### Fixed
+
+- Made Reader Appearance content scroll in landscape and compact-height windows
+  so font size, line height, page margins, and Restore defaults remain reachable
+  above system navigation areas.
+- Serialized document writes and exposed a quiet saving state, preventing repeated
+  taps or slow file providers from starting overlapping saves.
+- Bound save completion to the content revision and snapshot that initiated the
+  write, so edits made during a save remain unsaved instead of being cleared by an
+  older completion.
+- Kept normal writable documents on the same URI; only new documents and
+  read-only sources enter Save As.
+
+### Migration
+
+- v0.3.2 retains Mora's package and signing identity and increments its version
+  code for an in-place update from public v0.3.1. Stable publication is blocked
+  until the exact Draft APK passes that upgrade check on a real device.
+- The upgrade is designed to keep recent documents, reading positions,
+  typography, appearance, and launcher selection.
+- Debug-signed previews still must be uninstalled before installing the public
+  Release-signed APK.
+
+### Notes
+
+- App Settings remains a scrollable Material bottom sheet. Predictive Back scales
+  the already drawn surface and does not reflow an off-screen language row into
+  the visible viewport; this accepted platform behavior does not affect settings
+  access, cancellation, or completion.
+
 ## [0.3.1] - 2026-07-25
 
-First stable-release target after the v0.3.0 candidate was blocked in exact-asset
+First stable release after the v0.3.0 candidate was blocked in exact-asset
 real-device testing.
 
 ### Fixed
