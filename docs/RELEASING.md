@@ -4,25 +4,27 @@ Mora uses one long-term Android app-signing key for every public APK. Losing tha
 key or its passwords prevents existing users from installing future GitHub builds
 as updates. Treat this document as a release gate, not as a convenience checklist.
 
-Stable v0.3.2 uses one exact signed candidate and one short current-device smoke
-session:
+Stable v0.3.3 uses one exact signed candidate and one short Android 16 / API 36
+emulator smoke session. This physical-device exception was explicitly approved
+because v0.3.3 changes only launcher resources, version metadata, and brand
+documentation:
 
 ```text
 Pull-request and final main CI green
-→ create annotated v0.3.2 tag on that final main commit
+→ create annotated v0.3.3 tag on that final main commit
 → tag workflow creates a signed hidden Draft Pre-release
 → independently verify that exact Draft APK once
-→ run one short smoke session on one current Android device
+→ run one short smoke session on one Android 16 / API 36 emulator
 → edit the same Draft to stable/latest
 → redownload the public attachment and confirm SHA-256 is unchanged
 ```
 
-The v0.3.2 publication path uses no separate protected manual candidate and no
+The v0.3.3 publication path uses no separate protected manual candidate and no
 second full device matrix. Pull-request and `main` CI already exercise the
 minified Release pipeline with an ephemeral non-release key. The retained manual
 dispatch can produce a protected signed Actions artifact for another explicitly
-approved purpose, but it is not used for v0.3.2 and creates no GitHub Release; only
-the tag-triggered run creates the distributable v0.3.2 Draft candidate.
+approved purpose, but it is not used for v0.3.3 and creates no GitHub Release; only
+the tag-triggered run creates the distributable v0.3.3 Draft candidate.
 
 ## Blocked v0.3.0 record
 
@@ -110,12 +112,12 @@ a locally rebuilt APK in place of the tag workflow's Draft attachment.
 
 ## Pre-tag gate
 
-Before creating `v0.3.2`, confirm:
+Before creating `v0.3.3`, confirm:
 
 1. the release pull request is reviewed and its Android CI job is green;
 2. final `main` CI is green on the exact commit to tag;
-3. `versionName` is `0.3.2` and `versionCode` is `6`;
-4. `CHANGELOG.md` contains exactly one dated `## [0.3.2] - YYYY-MM-DD` heading;
+3. `versionName` is `0.3.3` and `versionCode` is `7`;
+4. `CHANGELOG.md` contains exactly one dated `## [0.3.3] - YYYY-MM-DD` heading;
 5. all intended code, launcher resources, screenshots, and documentation are in
    that commit;
 6. there are no uncommitted or unpushed release changes;
@@ -125,34 +127,34 @@ Before creating `v0.3.2`, confirm:
 Create and push the annotated tag on that exact `main` commit:
 
 ```powershell
-git tag -a v0.3.2 -m "Mora v0.3.2"
-git push origin v0.3.2
+git tag -a v0.3.3 -m "Mora v0.3.3"
+git push origin v0.3.3
 ```
 
 Never create the tag speculatively. If code must change after it is pushed, do not
-move or replace the tag; stop v0.3.2 publication and prepare a later version.
+move or replace the tag; stop v0.3.3 publication and prepare a later version.
 
 ## Tag workflow and hidden Draft
 
-The `v0.3.2` push starts **Signed Android release**. The workflow:
+The `v0.3.3` push starts **Signed Android release**. The workflow:
 
 1. checks that the tag is valid and its commit is contained in `main`;
 2. enters the protected `release-signing` Environment;
 3. runs unit tests, Release lint, R8, resource shrinking, and the Release build;
 4. verifies package metadata, minimum and target SDKs, signing validity, and the
    registered certificate fingerprint;
-5. produces `Mora-v0.3.2.apk` and `Mora-v0.3.2.apk.sha256`;
+5. produces `Mora-v0.3.3.apk` and `Mora-v0.3.3.apk.sha256`;
 6. retains the official R8 mapping output as a private Actions artifact, not a
    public Release attachment;
 7. creates a hidden Draft Pre-release for the tag.
 
-The Draft APK is the only signed candidate that receives the v0.3.2 identity and
-device gate.
+The Draft APK is the only signed candidate that receives the v0.3.3 identity and
+emulator gate.
 
 ## Public release candidate
 
 This optional path is retained for a future version that explicitly needs public
-testing. It is not used for v0.3.2.
+testing. It is not used for v0.3.3.
 
 A release-candidate tag uses `v<major>.<minor>.<patch>-rc.<number>`. Before pushing
 one:
@@ -183,8 +185,8 @@ only from the intermediate Actions artifact.
 Verify the sidecar from the directory containing both files:
 
 ```powershell
-$apk = "Mora-v0.3.2.apk"
-$sidecar = "Mora-v0.3.2.apk.sha256"
+$apk = "Mora-v0.3.3.apk"
+$sidecar = "Mora-v0.3.3.apk.sha256"
 $expected = ((Get-Content -LiteralPath $sidecar -Raw).Trim() -split "\s+")[0]
 $actual = (Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash
 if ($actual -ne $expected.ToUpperInvariant()) {
@@ -203,8 +205,8 @@ $sdk = if ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } else { $env:ANDROID_
 Confirm all of the following before installation:
 
 - package: `de.unbow.mora`;
-- `versionName`: `0.3.2`;
-- `versionCode`: `6`;
+- `versionName`: `0.3.3`;
+- `versionCode`: `7`;
 - `minSdk`: `26`;
 - `targetSdk`: `36`;
 - signer certificate SHA-256 equals
@@ -214,28 +216,26 @@ Confirm all of the following before installation:
 Do not print or record private-key material, passwords, or protected secret values.
 The certificate fingerprint and APK checksum are public integrity data.
 
-## One-device smoke gate
+## One-emulator smoke gate
 
-Use the exact verified Draft APK on one current Android phone. Keep this to a
-short, release-focused session:
+Use the exact verified Draft APK on one Android 16 / API 36 emulator. Keep this
+to a short, release-focused session:
 
-1. when possible, install it as an in-place update over public v0.3.1 and confirm
+1. install it as an in-place update over public v0.3.2 and confirm
    recent-document state remains available;
-2. launch Home and open a real, sanitized, long Markdown document;
-3. scroll, use the table of contents and search, return Home, reopen from Recents,
-   and confirm reading position restoration;
-4. rotate to landscape, open Reader Appearance, and reach all three sliders and
-   Restore defaults by display or scrolling without system-navigation overlap;
-5. edit one small passage, save to the original writable file, reopen it, and
-   confirm the exact edit;
-6. trigger Save rapidly and edit once during a save; confirm there is only one
-   active write for that document and a later edit remains dirty;
-7. complete and cancel predictive Back without a crash, flash, state loss, or an
-   incorrect destination;
-8. switch through Indigo, Pine, and Night and confirm every launcher alias still
-   launches Mora.
+2. confirm the selected folded-passage mark is comfortable in the launcher and a
+   launcher folder on light and dark wallpaper, with no clipping, excessive
+   weight, color error, or pressure against the available circle/squircle mask;
+3. inspect the icon in recent apps and system App info when those surfaces expose
+   it, and check the themed/monochrome icon when the launcher supports it;
+4. switch through Indigo, Pine, and Night and confirm every launcher alias uses
+   the same silhouette and still launches Mora;
+5. launch Home, open and read a sanitized Markdown document, return Home, and
+   reopen it from Recents;
+6. capture one final simulator launcher screenshot and compare it with the
+   approved small-size design.
 
-The following are useful future coverage but do not block v0.3.2:
+The following are useful future coverage but do not block v0.3.3:
 
 - Android 8 and every OEM or file provider;
 - a complete 200% font-size and accessibility matrix;
@@ -245,14 +245,16 @@ The following are useful future coverage but do not block v0.3.2:
 - any absolute APK-size target, provided shrinking is effective and behavior is
   correct.
 
-Record the device model, Android version, file provider, upgrade result, failures,
-APK byte size, and approved Draft SHA-256.
+Record the emulator profile, Android version, upgrade result, failures, APK byte
+size, and approved Draft SHA-256. Physical-device coverage is an explicitly
+accepted non-blocking omission for this resource-only release.
 
 ## Publish the same Draft
 
-Only after every blocking check above passes:
+Only after every blocking check above passes and the maintainer has explicitly
+approved publication after this emulator gate:
 
-1. replace the placeholder Draft notes with concise English and Chinese v0.3.2
+1. replace the placeholder Draft notes with concise English and Chinese v0.3.3
    release notes;
 2. edit that same Release to `draft=false`, `prerelease=false`, and latest;
 3. leave the tag, APK, and sidecar unchanged.
@@ -267,7 +269,7 @@ downloadable.
 ## Recovery and rotation
 
 - A transient infrastructure failure may be rerun against the same immutable tag.
-- If the tag workflow requires a code change, stop v0.3.2 publication and prepare a
+- If the tag workflow requires a code change, stop v0.3.3 publication and prepare a
   later version. Never force-update the tag.
 - If a blocking defect appears after public release, keep the attachment and tag
   unchanged and fix it in a later version.

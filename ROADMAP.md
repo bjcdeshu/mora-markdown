@@ -6,9 +6,24 @@ Mora's direction is simple:
 
 This roadmap describes intent, not a delivery promise. Priorities may change after real-device feedback.
 
+## v0.3.3 — launcher identity polish
+
+The current release target keeps the complete v0.3.2 product behavior and makes
+one focused brand correction:
+
+- replace the heavy shield-like launcher mark with the selected open
+  folded-passage symbol;
+- keep one identical silhouette across adaptive, round, legacy, monochrome,
+  Indigo, Pine, and Night resources;
+- add a formal SVG source of truth and deterministic Android exports;
+- refresh only the launcher-facing screenshots and public brand surface affected
+  by the new identity.
+
+No reader, editor, storage, account, sync, vault, or plugin scope is added.
+
 ## v0.3.2 — stable polish
 
-The current codebase includes:
+The public v0.3.2 baseline includes:
 
 - Immersive reading with a scroll-aware toolbar
 - A subtle right-edge progress thumb with direct dragging for long documents
@@ -27,10 +42,10 @@ The current codebase includes:
 - Minified, resource-shrunk Release builds with retained private R8 mappings
 - Reproducible tests, lint, APK builds, and public project documentation
 
-Public `v0.3.1` established the first stable line. Signed `v0.2.0-rc.1` remains a
-historical public Pre-release, while stable v0.2.0 was never published. The
-`v0.3.0` tag and hidden Draft remain an unpublished, blocked audit record and must
-not be moved, replaced, or published.
+Public `v0.3.2` established the stable functional baseline carried into v0.3.3.
+Signed `v0.2.0-rc.1` remains a historical public Pre-release, while stable
+v0.2.0 was never published. The `v0.3.0` tag and hidden Draft remain an
+unpublished, blocked audit record and must not be moved, replaced, or published.
 
 ## v0.3.x — focused follow-up
 
@@ -40,7 +55,7 @@ not be moved, replaced, or published.
 
 ## Next
 
-Priorities after v0.3.2:
+Priorities after v0.3.3:
 
 - Detect external file changes and resolve save conflicts safely
 - Improve relative local-image handling within Android's permission model

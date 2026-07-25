@@ -4,9 +4,10 @@ Updated: 2026-07-25
 
 ## Current stage
 
-Mora `v0.3.2` (`versionCode` 6) is the current stable-release target. It is a
-focused reliability and public-release polish update over the public `v0.3.1`
-release; signed `v0.2.0-rc.1` remains a historical public Pre-release.
+Mora `v0.3.3` (`versionCode` 7) is the current release target. It is a focused
+launcher-identity correction over the public `v0.3.2` release and intentionally
+keeps the complete v0.3.2 product behavior; signed `v0.2.0-rc.1` remains a
+historical public Pre-release.
 
 The v0.3 series keeps Mora's single-document workflow while providing:
 
@@ -14,38 +15,41 @@ The v0.3 series keeps Mora's single-document workflow while providing:
 - English and Simplified Chinese UI, including Android 13+ per-app language access;
 - separate Home-level application settings and Reader typography controls;
 - system/light/dark appearance plus an optional pure-black dark surface;
-- three selectable launcher palettes built from one Mora mark;
+- three selectable launcher palettes built from one open folded-passage mark;
 - predictive document-to-Home Back that previews the real composed Home beneath
   the current document on supported Android versions.
 
-The v0.3.2 update closes five focused release gaps:
+The v0.3.3 update makes one intentional brand correction:
 
-- Reader Appearance content scrolls in compact-height and landscape windows so
-  every typography control and Restore defaults remain reachable above system
-  navigation insets;
-- repeated save requests are serialized, the write uses a revisioned content
-  snapshot, and edits made during a save remain visibly unsaved without changing
-  the normal one-tap write-back path;
-- the launcher mark uses a deep ink-blue field and a warm-white folded-page form,
-  with matching adaptive, themed, round, legacy, and alias resources;
-- Release builds enable R8 optimization and resource shrinking, and the protected
-  release workflow retains the private mapping as an Actions artifact;
-- current screenshots, bilingual public documentation, issue intake, repository
-  metadata, and private security reporting are aligned with the v0.3.2 release
-  target.
+- the selected open folded-passage symbol replaces the heavy, shield-like
+  v0.3.2 launcher mark;
+- one identical silhouette is used for adaptive, themed, round, legacy, Indigo,
+  Pine, and Night resources;
+- `docs/design/mora-icon-v0.3.3.svg` is the formal source of truth, with a
+  deterministic JDK exporter for Android vectors and legacy density PNGs;
+- launcher-facing screenshots, the social preview, release guidance, and issue
+  intake are refreshed for the new identity;
+- no reader, editor, storage, privacy, security, or network behavior changes.
+
+Public v0.3.2 remains the functional baseline: Reader Appearance content scrolls
+in compact-height and landscape windows, save requests are serialized without
+changing normal one-tap write-back, Release builds use R8 and resource shrinking,
+and the protected workflow retains the private mapping as an Actions artifact.
 
 App Settings remains a scrollable Material bottom sheet. During predictive Back,
 Android transforms the already drawn sheet surface; content outside the current
 viewport is not remeasured into view. That transform-without-reflow behavior is
-accepted for v0.3.2 as long as cancellation and completion restore the correct
+accepted for v0.3.3 as long as cancellation and completion restore the correct
 state without clipping, flashing, data loss, or a crash.
 
-The v0.3.2 stable path validates one exact signed asset. Green pull-request and
-final `main` CI are followed by an annotated `v0.3.2` tag. The tag workflow creates
+The v0.3.3 stable path validates one exact signed asset. Green pull-request and
+final `main` CI are followed by an annotated `v0.3.3` tag. The tag workflow creates
 a hidden Draft Pre-release; its exact APK receives independent checksum, package,
 version, and certificate checks plus one short smoke session on a current Android
-device. That same Draft is then made stable/latest without moving the tag or
-replacing its attachments.
+16 / API 36 emulator. Because this release changes only launcher resources,
+version metadata, and brand documentation, David explicitly approved this
+emulator gate in place of a physical-device session. The same Draft is then made
+stable/latest without moving the tag or replacing its attachments.
 
 The annotated `v0.3.0` tag and its hidden Draft are permanently blocked from
 publication. Exact Draft-asset testing found a full-screen Compose pointer
@@ -166,12 +170,14 @@ GitHub Secrets are delivery infrastructure, not a backup.
 - The annotated stable tag must point to the final green commit already contained
   in `main`; it must never be moved or force-updated.
 - Only the protected **Signed Android release** workflow may use the long-term
-  signing identity. For v0.3.2, only its tag-triggered run creates the stable
+  signing identity. For v0.3.3, only its tag-triggered run creates the stable
   candidate and hidden Draft.
 - The exact hidden Draft APK and SHA-256 sidecar must pass independent checksum,
   package, SDK, version, and signer-certificate checks.
-- One current Android device must pass the documented short smoke session on that
-  exact Draft APK, including a `v0.3.1` in-place upgrade when available.
+- For the resource-only v0.3.3 release, one Android 16 / API 36 emulator must pass
+  the documented short smoke session on that exact Draft APK, including a
+  `v0.3.2` in-place upgrade. Future behavior-changing releases must select a gate
+  appropriate to their risk and are not covered by this exception.
 - Publication edits that same Draft to `draft=false`, `prerelease=false`, and
   latest. Do not replace the APK or sidecar.
 - The public attachment must be downloaded again and match the approved Draft
