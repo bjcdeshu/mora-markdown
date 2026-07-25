@@ -62,6 +62,7 @@
     <string name="navigate_back">返回</string>
     <string name="read_document">阅读</string>
     <string name="save_document">保存</string>
+    <string name="saving_document">正在保存</string>
     <string name="table_of_contents">目录</string>
     <string name="search_document">搜索</string>
     <string name="edit_document">编辑</string>

@@ -68,6 +68,7 @@
     <string name="navigate_back">Back</string>
     <string name="read_document">Read</string>
     <string name="save_document">Save</string>
+    <string name="saving_document">Saving</string>
     <string name="table_of_contents">Table of contents</string>
     <string name="search_document">Search</string>
     <string name="edit_document">Edit</string>
