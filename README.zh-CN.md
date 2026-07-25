@@ -4,11 +4,11 @@
 
 [English](README.md)
 
+**[下载最新版本](https://github.com/bjcdeshu/mora-markdown/releases/latest)** · Android 8.0+ · [使用反馈](https://github.com/bjcdeshu/mora-markdown/issues/15) · [报告 Bug](https://github.com/bjcdeshu/mora-markdown/issues/new?template=bug_report.yml)
+
 ![Mora 阅读页与目录界面](docs/assets/social-preview.png)
 
 ## 下载
-
-**[下载最新版本](https://github.com/bjcdeshu/mora-markdown/releases/latest)** · 支持 Android 8.0+
 
 每个稳定版本都附有签名 APK 和对应的 SHA-256 校验文件。Pre-release 是测试候选版；标记为 **Latest** 的版本已经通过 Mora 对准确附件的发布验收。
 
@@ -19,6 +19,12 @@
 - 通过 H1–H3 目录、当前章节高亮和文内搜索浏览长文。
 - 使用移动端格式快捷栏做轻量源码编辑，并一键原地保存；只有新建目标或需要可写副本时才进入“另存为”。
 - 跟随设备语言与外观，提供英文和简体中文界面、浅色/深色模式、动态配色和三套启动器配色。
+
+## 界面截图
+
+| 阅读 | 文档目录 | 首页 |
+|:--:|:--:|:--:|
+| ![在 Mora 阅读器中打开一篇中英双语 Markdown 文档](docs/screenshots/v0.3.2/reader.png) | ![Mora 为长文生成的文档目录](docs/screenshots/v0.3.2/toc-or-search.png) | ![Mora 首页的最近文档与打开和新建入口](docs/screenshots/v0.3.2/home.png) |
 
 ## 本地优先
 

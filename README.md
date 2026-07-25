@@ -4,11 +4,11 @@
 
 [简体中文](README.zh-CN.md)
 
+**[Download the latest release](https://github.com/bjcdeshu/mora-markdown/releases/latest)** · Android 8.0+ · [Feedback](https://github.com/bjcdeshu/mora-markdown/issues/15) · [Report a bug](https://github.com/bjcdeshu/mora-markdown/issues/new?template=bug_report.yml)
+
 ![Mora reading and table-of-contents screens](docs/assets/social-preview.png)
 
 ## Download
-
-**[Download the latest release](https://github.com/bjcdeshu/mora-markdown/releases/latest)** · Android 8.0+
 
 Every stable release includes a signed APK and a matching SHA-256 sidecar. Pre-releases are test candidates; the **Latest** release has passed Mora's exact-asset release gate.
 
@@ -19,6 +19,12 @@ Every stable release includes a signed APK and a matching SHA-256 sidecar. Pre-r
 - Navigate long documents with an H1–H3 table of contents, current-section highlighting, and in-document search.
 - Make light source edits with a mobile formatting bar, then save in place; Save As appears only when a new target or writable copy is required.
 - Follow the device language and appearance, with English and Simplified Chinese UI, light/dark modes, dynamic color, and three launcher palettes.
+
+## Screenshots
+
+| Reader | Table of contents | Home |
+|:--:|:--:|:--:|
+| ![A bilingual Markdown document open in Mora's reader](docs/screenshots/v0.3.2/reader.png) | ![Mora's table of contents for a long document](docs/screenshots/v0.3.2/toc-or-search.png) | ![Mora Home with a recent document and Open and New actions](docs/screenshots/v0.3.2/home.png) |
 
 ## Local-first by design
 

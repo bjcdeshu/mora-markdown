@@ -8,7 +8,7 @@ This roadmap describes intent, not a delivery promise. Priorities may change aft
 
 ## v0.3.3 — launcher identity polish
 
-The current release target keeps the complete v0.3.2 product behavior and makes
+The current public stable release keeps the complete v0.3.2 product behavior and makes
 one focused brand correction:
 
 - replace the heavy shield-like launcher mark with the selected open
