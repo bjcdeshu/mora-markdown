@@ -90,7 +90,7 @@ internal data class DocumentSaveSnapshot(
 
 internal class DocumentSaveCoordinator {
     private var requestCounter = 0L
-    private var activeSnapshot: DocumentSaveSnapshot? = null
+    private val activeSnapshotsBySession = mutableMapOf<Long, DocumentSaveSnapshot>()
 
     @Synchronized
     fun tryBegin(
@@ -98,20 +98,20 @@ internal class DocumentSaveCoordinator {
         contentRevision: Long,
         content: String,
     ): DocumentSaveSnapshot? {
-        if (activeSnapshot != null) return null
+        if (activeSnapshotsBySession.containsKey(sessionId)) return null
         requestCounter += 1
         return DocumentSaveSnapshot(
             requestId = requestCounter,
             sessionId = sessionId,
             contentRevision = contentRevision,
             content = content,
-        ).also { activeSnapshot = it }
+        ).also { activeSnapshotsBySession[sessionId] = it }
     }
 
     @Synchronized
     fun finish(snapshot: DocumentSaveSnapshot) {
-        if (activeSnapshot?.requestId == snapshot.requestId) {
-            activeSnapshot = null
+        if (activeSnapshotsBySession[snapshot.sessionId]?.requestId == snapshot.requestId) {
+            activeSnapshotsBySession.remove(snapshot.sessionId)
         }
     }
 }
@@ -120,6 +120,11 @@ internal fun shouldUseSaveAs(
     hasUri: Boolean,
     canWrite: Boolean,
 ): Boolean = !hasUri || !canWrite
+
+internal fun isSaveResultCurrent(
+    currentSessionId: Long,
+    savedSnapshot: DocumentSaveSnapshot,
+): Boolean = currentSessionId == savedSnapshot.sessionId
 
 internal fun shouldRemainDirtyAfterSave(
     currentContent: String,
@@ -373,7 +378,7 @@ class MarkdownViewModel : ViewModel() {
             }
 
             saveCoordinator.finish(snapshot)
-            if (uiState.sessionId != sessionId) return@launch
+            if (!isSaveResultCurrent(uiState.sessionId, snapshot)) return@launch
 
             if (failure != null) {
                 uiState = stateAfterSaveFailure(uiState)
@@ -381,7 +386,6 @@ class MarkdownViewModel : ViewModel() {
                 return@launch
             }
 
-            persistedContent = snapshot.content
             val resolvedName = if (updateDocumentIdentity) {
                 resolveDocumentName(
                     sourceName = DocumentRepository.displayName(context, uri),
@@ -391,6 +395,9 @@ class MarkdownViewModel : ViewModel() {
             } else {
                 null
             }
+            if (!isSaveResultCurrent(uiState.sessionId, snapshot)) return@launch
+
+            persistedContent = snapshot.content
             if (updateDocumentIdentity) {
                 recentDocuments = RecentDocumentsRepository.recordOpened(
                     context = context,

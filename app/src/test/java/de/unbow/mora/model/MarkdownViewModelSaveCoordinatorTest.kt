@@ -38,6 +38,38 @@ class MarkdownViewModelSaveCoordinatorTest {
     }
 
     @Test
+    fun `a slow save from an old document does not block the current session`() {
+        val coordinator = DocumentSaveCoordinator()
+        val oldDocument = coordinator.tryBegin(
+            sessionId = 7L,
+            contentRevision = 3L,
+            content = "# Old document",
+        )
+
+        val currentDocument = coordinator.tryBegin(
+            sessionId = 8L,
+            contentRevision = 1L,
+            content = "# Current document",
+        )
+
+        assertNotNull(oldDocument)
+        assertNotNull(currentDocument)
+    }
+
+    @Test
+    fun `an old save result cannot update a newer document session`() {
+        val oldDocument = DocumentSaveSnapshot(
+            requestId = 1L,
+            sessionId = 7L,
+            contentRevision = 3L,
+            content = "# Old document",
+        )
+
+        assertTrue(isSaveResultCurrent(currentSessionId = 7L, savedSnapshot = oldDocument))
+        assertFalse(isSaveResultCurrent(currentSessionId = 8L, savedSnapshot = oldDocument))
+    }
+
+    @Test
     fun `editing during a save remains dirty after the saved snapshot completes`() {
         val snapshot = DocumentSaveSnapshot(
             requestId = 1L,
