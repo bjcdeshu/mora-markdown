@@ -14,7 +14,20 @@ body:
     attributes:
       label: Mora version
       description: Find this in the installed APK or release name.
-      placeholder: "0.2.0"
+      placeholder: "0.3.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: build_source
+    attributes:
+      label: Build source
+      description: Choose the exact kind of APK you installed.
+      options:
+        - GitHub stable Release
+        - GitHub Pre-release
+        - Debug or self-built APK
+        - Other
     validations:
       required: true
 
@@ -25,6 +38,13 @@ body:
       placeholder: "Android 14, Pixel 7"
     validations:
       required: true
+
+  - type: input
+    id: device_state
+    attributes:
+      label: Orientation and navigation mode
+      description: Include this for layout, scrolling, bottom-sheet, or Back issues.
+      placeholder: "Landscape, gesture navigation"
 
   - type: dropdown
     id: entry
@@ -77,7 +97,7 @@ body:
     id: sample
     attributes:
       label: Minimal sample or additional context
-      description: Paste only sanitized Markdown or logs needed to reproduce the issue.
+      description: Paste only sanitized Markdown or logs needed to reproduce the issue. For APK problems, include the Release URL or SHA-256 if available.
 
   - type: checkboxes
     id: checks
