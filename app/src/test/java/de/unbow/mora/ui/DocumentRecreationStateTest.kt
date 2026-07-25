@@ -1,9 +1,18 @@
 package de.unbow.mora.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DocumentRecreationStateTest {
+
+    @Test
+    fun `save as result is accepted only for the document that launched it`() {
+        assertTrue(isSaveAsResultCurrent(requestSessionId = 42L, currentSessionId = 42L))
+        assertFalse(isSaveAsResultCurrent(requestSessionId = 42L, currentSessionId = 43L))
+        assertFalse(isSaveAsResultCurrent(requestSessionId = null, currentSessionId = 42L))
+    }
 
     @Test
     fun `recreation preserves the current reading position for the same session`() {

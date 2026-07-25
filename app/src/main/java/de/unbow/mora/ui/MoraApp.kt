@@ -75,6 +75,11 @@ internal fun resolveReaderScrollSession(
     )
 }
 
+internal fun isSaveAsResultCurrent(
+    requestSessionId: Long?,
+    currentSessionId: Long,
+): Boolean = requestSessionId != null && requestSessionId == currentSessionId
+
 @Composable
 fun MoraApp(
     appSettings: AppSettings,
@@ -111,7 +116,8 @@ fun MoraApp(
     var showReaderAppearance by rememberSaveable { mutableStateOf(false) }
     var showAppSettings by rememberSaveable { mutableStateOf(false) }
     var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
-    var saveAsPending by rememberSaveable(state.sessionId) { mutableStateOf(false) }
+    var saveAsRequestSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val saveAsPending = saveAsRequestSessionId == state.sessionId
     var fontSize by rememberSaveable {
         mutableFloatStateOf(storedReaderPreferences.fontSizePx)
     }
@@ -290,8 +296,17 @@ fun MoraApp(
     val createDocument = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/markdown"),
     ) { uri ->
-        saveAsPending = false
-        uri ?: return@rememberLauncherForActivityResult
+        val requestSessionId = saveAsRequestSessionId
+        saveAsRequestSessionId = null
+        if (
+            uri == null ||
+            !isSaveAsResultCurrent(
+                requestSessionId = requestSessionId,
+                currentSessionId = markdownViewModel.uiState.sessionId,
+            )
+        ) {
+            return@rememberLauncherForActivityResult
+        }
         DocumentRepository.persistPermission(context, uri)
         markdownViewModel.saveAs(context, uri, notifySave)
     }
@@ -498,7 +513,7 @@ fun MoraApp(
                                     canWrite = state.canWrite,
                                 )
                             ) {
-                                saveAsPending = true
+                                saveAsRequestSessionId = state.sessionId
                                 createDocument.launch(
                                     normalizedMarkdownName(
                                         displayedDocumentName,
