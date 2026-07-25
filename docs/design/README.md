@@ -14,7 +14,7 @@ Geometry recorded from the approved vector:
 
 Color tokens remain in `app/src/main/res/values/colors.xml`:
 
-- Ink: `#17243A`
+- Indigo launcher / Ink background: `#17243A`
 - Pine: `#1F4B3E`
 - Night: `#0B1220`
 - Warm paper: `#F7F3EA`
@@ -27,7 +27,7 @@ java tools/ExportMoraLauncherIcons.java
 ```
 
 The exporter reads the SVG path and Android color resources, writes identical
-foreground geometry for Indigo, Pine, Night, and monochrome, generates the
+foreground geometry for Indigo (Ink), Pine, Night, and monochrome, generates the
 legacy `mdpi` through `xxxhdpi` squircle/round PNGs, and updates the mark in the
 1280 × 640 social preview without changing its screenshots or typography.
 Adaptive icon XML and launcher aliases continue to reference the generated
