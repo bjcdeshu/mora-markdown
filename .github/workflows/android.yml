@@ -47,6 +47,76 @@ jobs:
       - name: Validate and build debug APK
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug
 
+      - name: Validate minified Release with an ephemeral non-release key
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CI_KEYSTORE="$RUNNER_TEMP/mora-ci-validation.jks"
+          CI_PASSWORD="$(openssl rand -hex 24)"
+          CI_ALIAS="mora-ci-validation"
+          RELEASE_APK="app/build/outputs/apk/release/app-release.apk"
+          RELEASE_MAPPING="app/build/outputs/mapping/release/mapping.prt"
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+
+          cleanup() {
+            rm -f "$CI_KEYSTORE" "$RELEASE_APK"
+          }
+          trap cleanup EXIT
+
+          keytool -genkeypair \
+            -noprompt \
+            -keystore "$CI_KEYSTORE" \
+            -storetype JKS \
+            -storepass "$CI_PASSWORD" \
+            -keypass "$CI_PASSWORD" \
+            -alias "$CI_ALIAS" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 1 \
+            -dname "CN=Mora CI Validation"
+
+          export MORA_RELEASE_STORE_FILE="$CI_KEYSTORE"
+          export MORA_RELEASE_STORE_PASSWORD="$CI_PASSWORD"
+          export MORA_RELEASE_KEY_ALIAS="$CI_ALIAS"
+          export MORA_RELEASE_KEY_PASSWORD="$CI_PASSWORD"
+
+          ./gradlew \
+            --no-configuration-cache \
+            --no-build-cache \
+            --no-daemon \
+            lintRelease \
+            assembleRelease
+
+          [[ -s "$RELEASE_APK" ]] || {
+            echo "Minified Release validation APK was not produced." >&2
+            exit 1
+          }
+          [[ -s "$RELEASE_MAPPING" ]] || {
+            echo "R8 mapping was not produced." >&2
+            exit 1
+          }
+
+          "$APKSIGNER" verify --verbose -Werr "$RELEASE_APK"
+
+          VALIDATION_CERT_SHA256="$(
+            "$APKSIGNER" verify --print-certs "$RELEASE_APK" |
+              sed -n 's/^Signer #1 certificate SHA-256 digest: //p' |
+              tr -d '[:space:]:-' |
+              tr '[:lower:]' '[:upper:]'
+          )"
+          REGISTERED_CERT_SHA256="$(
+            tr -d '[:space:]:-' < docs/mora-release-certificate.sha256 |
+              tr '[:lower:]' '[:upper:]'
+          )"
+
+          [[ -n "$VALIDATION_CERT_SHA256" ]]
+          [[ -n "$REGISTERED_CERT_SHA256" ]]
+          [[ "$VALIDATION_CERT_SHA256" != "$REGISTERED_CERT_SHA256" ]] || {
+            echo "CI validation must never use Mora's registered release identity." >&2
+            exit 1
+          }
+
       - name: Upload debug APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
