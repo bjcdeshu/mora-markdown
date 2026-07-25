@@ -3,7 +3,7 @@ package de.unbow.mora.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -30,8 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -151,8 +149,10 @@ fun MoraApp(
                 initialValue = startingProgress,
                 targetValue = 0f,
                 animationSpec = tween(
-                    durationMillis = 180,
-                    easing = LinearEasing,
+                    durationMillis = calculatePredictiveBackCancellationDurationMillis(
+                        startingProgress,
+                    ),
+                    easing = LinearOutSlowInEasing,
                 ),
             ) { value, _ ->
                 predictiveBackProgress = value
@@ -318,17 +318,6 @@ fun MoraApp(
         windowWidth = windowWidth,
     )
     val maximumBackCornerRadius = with(density) { 28.dp.toPx() }
-    val predictiveBackFrame = if (predictiveBackVisualActive) {
-        calculatePredictiveDocumentBackFrame(
-            progress = predictiveBackProgress,
-            swipeEdge = predictiveBackSwipeEdge,
-            maximumTranslation = maximumBackTranslation,
-            maximumCornerRadius = maximumBackCornerRadius,
-        )
-    } else {
-        PredictiveDocumentBackFrame.Idle
-    }
-
     Box(
         Modifier
             .fillMaxSize()
@@ -337,9 +326,19 @@ fun MoraApp(
         HomeScreen(
             modifier = Modifier
                 .graphicsLayer {
-                    scaleX = predictiveBackFrame.home.scale
-                    scaleY = predictiveBackFrame.home.scale
-                    alpha = predictiveBackFrame.home.alpha
+                    val frame = if (predictiveBackVisualActive) {
+                        calculatePredictiveDocumentBackFrame(
+                            progress = predictiveBackProgress,
+                            swipeEdge = predictiveBackSwipeEdge,
+                            maximumTranslation = maximumBackTranslation,
+                            maximumCornerRadius = maximumBackCornerRadius,
+                        )
+                    } else {
+                        PredictiveDocumentBackFrame.Idle
+                    }
+                    scaleX = frame.home.scale
+                    scaleY = frame.home.scale
+                    alpha = frame.home.alpha
                 }
                 .then(
                     if (state.hasDocument) {
@@ -401,24 +400,29 @@ fun MoraApp(
                 )
             }
 
+            // Keep this container free of full-screen pointer consumers. The
+            // AndroidView reader must receive unconsumed MotionEvents for native
+            // WebView scrolling; Home is already non-interactive while a document
+            // is open and remains behind this full-size surface.
             Surface(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(state.sessionId) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                awaitPointerEvent(PointerEventPass.Final)
-                                    .changes
-                                    .forEach { it.consume() }
-                            }
-                        }
-                    }
                     .graphicsLayer {
-                        scaleX = predictiveBackFrame.document.scale
-                        scaleY = predictiveBackFrame.document.scale
-                        translationX = predictiveBackFrame.document.translation
-                        alpha = predictiveBackFrame.document.alpha
-                        val cornerRadius = predictiveBackFrame.document.cornerRadius
+                        val frame = if (predictiveBackVisualActive) {
+                            calculatePredictiveDocumentBackFrame(
+                                progress = predictiveBackProgress,
+                                swipeEdge = predictiveBackSwipeEdge,
+                                maximumTranslation = maximumBackTranslation,
+                                maximumCornerRadius = maximumBackCornerRadius,
+                            )
+                        } else {
+                            PredictiveDocumentBackFrame.Idle
+                        }
+                        scaleX = frame.document.scale
+                        scaleY = frame.document.scale
+                        translationX = frame.document.translation
+                        alpha = frame.document.alpha
+                        val cornerRadius = frame.document.cornerRadius
                         shape = RoundedCornerShape(cornerRadius.toDp())
                         clip = cornerRadius > 0f
                     },

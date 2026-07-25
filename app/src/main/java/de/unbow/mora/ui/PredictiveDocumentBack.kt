@@ -2,7 +2,6 @@ package de.unbow.mora.ui
 
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -46,19 +45,35 @@ internal data class PredictiveDocumentBackFrame(
     }
 }
 
-// Mora uses a product-specific spatial reveal for its text-dense Document-to-Home
-// transition. These values intentionally differ from Android's full-screen
-// fade-through motion spec; the destination remains visible underneath from the
-// start of the gesture.
-private const val PredictiveBackMaximumTranslationFraction = 0.45f
-private const val PredictiveBackDocumentFadeStart = 0.8f
-private val PredictiveBackEasing = CubicBezierEasing(0.1f, 0.1f, 0f, 1f)
+// Keep the document attached to the user's finger with a small directional cue.
+// Android's current Compose guidance uses a single outgoing scale transition as
+// its custom in-app example; Mora adds only a restrained edge translation while
+// leaving the real Home destination stable underneath.
+private const val PredictiveBackMaximumTranslationFraction = 0.08f
+private const val PredictiveBackMinimumDocumentScale = 0.96f
+private const val PredictiveBackDocumentFadeStart = 0.65f
+private const val PredictiveBackCancellationMinimumDurationMillis = 80
+private const val PredictiveBackCancellationMaximumDurationMillis = 180
 
 internal fun calculateMaximumPredictiveBackTranslation(
     windowWidth: Float,
 ): Float {
     val resolvedWidth = windowWidth.takeIf(Float::isFinite)?.coerceAtLeast(0f) ?: 0f
     return resolvedWidth * PredictiveBackMaximumTranslationFraction
+}
+
+internal fun calculatePredictiveBackCancellationDurationMillis(progress: Float): Int {
+    val resolvedProgress = progress
+        .takeIf(Float::isFinite)
+        ?.coerceIn(0f, 1f)
+        ?: 0f
+    return (
+        PredictiveBackCancellationMinimumDurationMillis +
+            (
+                PredictiveBackCancellationMaximumDurationMillis -
+                    PredictiveBackCancellationMinimumDurationMillis
+                ) * resolvedProgress
+        ).toInt()
 }
 
 internal fun calculatePredictiveDocumentBackFrame(
@@ -72,7 +87,6 @@ internal fun calculatePredictiveDocumentBackFrame(
     } else {
         0f
     }
-    val easedProgress = PredictiveBackEasing.transform(resolvedProgress)
     val translationDirection = when (swipeEdge) {
         DocumentBackSwipeEdge.LEFT -> 1f
         DocumentBackSwipeEdge.RIGHT -> -1f
@@ -81,23 +95,24 @@ internal fun calculatePredictiveDocumentBackFrame(
         (resolvedProgress - PredictiveBackDocumentFadeStart) /
             (1f - PredictiveBackDocumentFadeStart)
         ).coerceIn(0f, 1f)
-    val documentAlpha = 1f - PredictiveBackEasing.transform(documentFadeProgress)
+    val smoothedFadeProgress = documentFadeProgress *
+        documentFadeProgress *
+        (3f - (2f * documentFadeProgress))
+    val documentAlpha = 1f - smoothedFadeProgress
 
     return PredictiveDocumentBackFrame(
         document = PredictiveDocumentBackTransform(
-            scale = 1f - (0.1f * easedProgress),
+            scale = 1f - (
+                (1f - PredictiveBackMinimumDocumentScale) *
+                    resolvedProgress
+                ),
             translation = maximumTranslation.coerceAtLeast(0f) *
-                easedProgress *
+                resolvedProgress *
                 translationDirection,
-            cornerRadius = maximumCornerRadius.coerceAtLeast(0f) * easedProgress,
+            cornerRadius = maximumCornerRadius.coerceAtLeast(0f) * resolvedProgress,
             alpha = documentAlpha,
         ),
-        home = PredictiveDocumentBackTransform(
-            scale = 1.1f - (0.1f * easedProgress),
-            translation = 0f,
-            cornerRadius = 0f,
-            alpha = 1f,
-        ),
+        home = PredictiveDocumentBackTransform.Identity,
     )
 }
 
