@@ -4,8 +4,8 @@ Updated: 2026-07-25
 
 ## Current stage
 
-Mora `v0.3.3` (`versionCode` 7) is the current release target. It is a focused
-launcher-identity correction over the public `v0.3.2` release and intentionally
+Mora `v0.3.3` (`versionCode` 7) is the current public stable release. It is a focused
+launcher-identity correction over `v0.3.2` and intentionally
 keeps the complete v0.3.2 product behavior; signed `v0.2.0-rc.1` remains a
 historical public Pre-release.
 
@@ -42,13 +42,13 @@ viewport is not remeasured into view. That transform-without-reflow behavior is
 accepted for v0.3.3 as long as cancellation and completion restore the correct
 state without clipping, flashing, data loss, or a crash.
 
-The v0.3.3 stable path validates one exact signed asset. Green pull-request and
-final `main` CI are followed by an annotated `v0.3.3` tag. The tag workflow creates
-a hidden Draft Pre-release; its exact APK receives independent checksum, package,
+The v0.3.3 stable path validated one exact signed asset. Green pull-request and
+final `main` CI were followed by an annotated `v0.3.3` tag. The tag workflow created
+a hidden Draft Pre-release; its exact APK received independent checksum, package,
 version, and certificate checks plus one short smoke session on a current Android
 16 / API 36 emulator. Because this release changes only launcher resources,
 version metadata, and brand documentation, David explicitly approved this
-emulator gate in place of a physical-device session. The same Draft is then made
+emulator gate in place of a physical-device session. The same Draft was then made
 stable/latest without moving the tag or replacing its attachments.
 
 The annotated `v0.3.0` tag and its hidden Draft are permanently blocked from
