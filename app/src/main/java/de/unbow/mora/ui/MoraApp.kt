@@ -325,21 +325,6 @@ fun MoraApp(
     ) {
         HomeScreen(
             modifier = Modifier
-                .graphicsLayer {
-                    val frame = if (predictiveBackVisualActive) {
-                        calculatePredictiveDocumentBackFrame(
-                            progress = predictiveBackProgress,
-                            swipeEdge = predictiveBackSwipeEdge,
-                            maximumTranslation = maximumBackTranslation,
-                            maximumCornerRadius = maximumBackCornerRadius,
-                        )
-                    } else {
-                        PredictiveDocumentBackFrame.Idle
-                    }
-                    scaleX = frame.home.scale
-                    scaleY = frame.home.scale
-                    alpha = frame.home.alpha
-                }
                 .then(
                     if (state.hasDocument) {
                         Modifier.clearAndSetSemantics {}
