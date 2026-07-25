@@ -2,13 +2,15 @@
 
 Mora uses one long-term Android app-signing key for every public APK. Losing that key or its passwords prevents existing users from installing future GitHub builds as updates. Treat this document as a release gate, not as a convenience checklist.
 
-The first stable target is `v0.3.0`. Stable v0.2.0 was superseded before
+The first stable target is `v0.3.1`. Stable v0.2.0 was superseded before
 publication; signed `v0.2.0-rc.1` remains a historical public Pre-release.
-v0.3.0 will not use a public release candidate. Its protected `main` candidate
-and its separately rebuilt hidden Draft attachment must each pass the complete
-exact-asset gate before the same Draft is made public as stable.
+The tagged v0.3.0 candidate failed its hidden Draft exact-asset device gate and
+must remain unpublished. v0.3.1 will not use a public release candidate. Its
+protected `main` candidate and its separately rebuilt hidden Draft attachment
+must each pass the complete exact-asset gate before the same Draft is made public
+as stable.
 
-## v0.3.0 publication path
+## v0.3.1 publication path
 
 1. Merge only reviewed pull requests with green CI.
 2. Before building the candidate, finalize `versionCode`, `versionName`, and the
@@ -19,7 +21,7 @@ exact-asset gate before the same Draft is made public as stable.
    run the complete real-device matrix on that exact APK.
 4. Record the commit, APK SHA-256, devices, Android versions, file providers, and
    results. An explicit maintainer approval is required before tagging.
-5. Create annotated stable tag `v0.3.0` on the same tested commit. The tag workflow
+5. Create annotated stable tag `v0.3.1` on the same tested commit. The tag workflow
    rebuilds and creates a hidden Draft Pre-release; it does not publish it.
 6. Download that exact Draft APK and sidecar. Repeat all identity checks and the
    complete real-device matrix because this is a new build. Record a second
@@ -27,6 +29,18 @@ exact-asset gate before the same Draft is made public as stable.
 7. Edit that same GitHub Release to `draft=false`, `prerelease=false`, and latest.
    Do not move the tag or replace either attachment. Redownload the public APK and
    confirm its SHA-256 is identical to the approved Draft APK.
+
+## Blocked v0.3.0 record
+
+`v0.3.0` is permanently blocked from publication. Its annotated tag points to
+commit `03fbe8ca1dd4062e19ca86b3fdf530e9cd80ffa0`; its hidden Draft APK has
+SHA-256 `F0781946AD4BA2F13577292EE0A9BB5B3083771D2CC52073B748D809BDFF98D8`.
+Real-device testing found that a full-screen Compose pointer consumer intercepted
+reader WebView motion events and that the predictive document-to-Home transition
+was too forceful. The tag, Draft, APK, and sidecar are retained unchanged as audit
+history. Never move the tag, replace either attachment, or publish this Draft.
+All stable successors must use a later version name and a `versionCode` greater
+than 4.
 
 ## Safety model
 
@@ -93,7 +107,7 @@ Get-FileHash app\build\outputs\apk\release\app-release.apk -Algorithm SHA256
 
 The package must be `de.unbow.mora`, `minSdk` must be 26, `targetSdk` must be 36,
 and the signer certificate SHA-256 must equal the registered fingerprint. For the
-v0.3.0 stable path, `versionName` must be `0.3.0` and `versionCode` must be `4`.
+v0.3.1 stable path, `versionName` must be `0.3.1` and `versionCode` must be `5`.
 The downloaded `.sha256` sidecar must verify the exact APK before and after each
 device gate.
 
@@ -113,13 +127,13 @@ The workflow:
 5. creates no tag and no GitHub Release.
 
 Download that artifact and its sidecar, verify them independently, and record its
-SHA-256 before device testing. For v0.3.0, this protected Actions artifact is the
+SHA-256 before device testing. For v0.3.1, this protected Actions artifact is the
 first exact-asset gate and must complete the full matrix before any tag is created.
 
 ## Public release candidate
 
 This optional path is retained for a future version that explicitly needs public
-testing. It is not used for v0.3.0.
+testing. It is not used for v0.3.1.
 
 A release-candidate tag uses `v<major>.<minor>.<patch>-rc.<number>`. Before pushing
 one:

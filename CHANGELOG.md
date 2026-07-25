@@ -4,9 +4,28 @@ All notable changes to Mora are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-07-25
+
+First stable-release target after the v0.3.0 candidate was blocked in exact-asset
+real-device testing.
+
+### Fixed
+
+- Restored responsive native WebView scrolling by removing a full-screen Compose
+  pointer consumer that intercepted the reader's touch motion events.
+- Softened predictive document-to-Home Back with restrained translation and
+  scaling, a stable Home destination, smoother late-stage fading, and
+  distance-aware cancellation.
+- Kept predictive-Back frame updates inside graphics layers and removed redundant
+  Home transforms so gesture progress does not recompose or recalculate more of
+  the text-heavy screen than necessary.
+
 ## [0.3.0] - 2026-07-25
 
-First stable release.
+Not published. The annotated tag and hidden Draft are retained as blocked audit
+history after real-device testing found reader scrolling and predictive-Back
+motion regressions. This candidate is superseded by v0.3.1 and must not be made
+public.
 
 ### Added
 
@@ -34,9 +53,9 @@ First stable release.
 
 ## [0.2.0] - Not released
 
-Stable v0.2.0 was superseded by v0.3.0 before publication. The signed
-`v0.2.0-rc.1` Pre-release remains below as historical candidate history; no stable
-v0.2.0 tag or Release was published.
+Stable v0.2.0 was superseded before publication. Its first stable successor is
+v0.3.1; the signed `v0.2.0-rc.1` Pre-release remains below as historical candidate
+history, and no stable v0.2.0 tag or Release was published.
 
 ## [0.2.0-rc.1] - 2026-07-25
 

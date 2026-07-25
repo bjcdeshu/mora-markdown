@@ -8,9 +8,10 @@ Mora is built around one simple workflow: open a standard Markdown file, read it
 
 The project is intentionally document-first rather than vault-first. There is no account, proprietary document format, telemetry, or cloud service.
 
-> Mora v0.3.0 is the first stable release target. The planned stable v0.2.0 was
-> superseded before publication; `v0.2.0-rc.1` remains a historical Pre-release.
-> Please report device- and file-provider-specific issues through GitHub Issues.
+> Mora v0.3.1 is the first stable release target. The v0.3.0 candidate was
+> blocked by exact-asset real-device testing and remains unpublished;
+> `v0.2.0-rc.1` remains a historical Pre-release. Please report device- and
+> file-provider-specific issues through GitHub Issues.
 
 ## Highlights
 
