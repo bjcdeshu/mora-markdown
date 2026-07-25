@@ -4,6 +4,33 @@ All notable changes to Mora are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - 2026-07-25
+
+Focused launcher-identity polish for the stable v0.3 line.
+
+### Changed
+
+- Replaced the v0.3.2 shield-like launcher mark with the selected open
+  folded-passage symbol across adaptive, round, legacy, monochrome, and all
+  three launcher palettes.
+- Added a formal SVG source of truth and a deterministic JDK exporter for the
+  Android VectorDrawable and legacy density resources.
+- Refreshed the launcher imagery, social preview, release guidance, and issue
+  intake for the v0.3.3 identity.
+
+### Migration
+
+- v0.3.3 keeps Mora's package and signing identity and increments `versionCode`
+  to 7 for an in-place update from public v0.3.2.
+- The release does not change Mora's document, reading, editing, saving, privacy,
+  or security behavior.
+
+### Notes
+
+- By explicit maintainer decision, the exact signed Draft receives its launcher,
+  alias, startup, and basic reading smoke check on Android 16 / API 36 emulators;
+  checksum, signer, package, and version verification remain blocking.
+
 ## [0.3.2] - 2026-07-25
 
 Focused reliability, package-size, branding, and public-release polish for the
@@ -35,8 +62,8 @@ stable v0.3 line.
 ### Migration
 
 - v0.3.2 retains Mora's package and signing identity and increments its version
-  code for an in-place update from public v0.3.1. Stable publication is blocked
-  until the exact Draft APK passes that upgrade check on a real device.
+  code for an in-place update from public v0.3.1. The published v0.3.2 asset
+  passed that exact-Draft upgrade check on a real device.
 - The upgrade is designed to keep recent documents, reading positions,
   typography, appearance, and launcher selection.
 - Debug-signed previews still must be uninstalled before installing the public

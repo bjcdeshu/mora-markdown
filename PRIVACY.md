@@ -49,5 +49,5 @@ provider and are never copied into Mora's private storage as a cloud-sync featur
 
 Privacy-relevant behavior will be documented here and in the changelog. A feature
 that adds telemetry, an account, or a Mora-operated network service would require
-an explicit policy update. Mora v0.3.2 adds none of those features and introduces
+an explicit policy update. Mora v0.3.3 adds none of those features and introduces
 no new data collection.

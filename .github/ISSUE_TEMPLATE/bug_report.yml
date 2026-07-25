@@ -14,7 +14,7 @@ body:
     attributes:
       label: Mora version
       description: Find this in the installed APK or release name.
-      placeholder: "0.3.2"
+      placeholder: "0.3.3"
     validations:
       required: true
 
