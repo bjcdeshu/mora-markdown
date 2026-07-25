@@ -6,7 +6,7 @@ Mora's direction is simple:
 
 This roadmap describes intent, not a delivery promise. Priorities may change after real-device feedback.
 
-## v0.3.0 — first stable release
+## v0.3.1 — first stable release
 
 The current codebase includes:
 
@@ -25,9 +25,12 @@ The current codebase includes:
 - Reproducible tests, lint, APK builds, and public project documentation
 
 The signed `v0.2.0-rc.1` build remains a historical public Pre-release. Stable
-`v0.2.0` was not published and is superseded by this target.
+`v0.2.0` was not published and is superseded by this target. The `v0.3.0` tag
+and hidden Draft remain an unpublished, blocked audit record after exact-asset
+testing exposed reader scroll interception and overly aggressive predictive-Back
+motion.
 
-Mora will not publish a separate public RC for v0.3.0. After pull-request and
+Mora will not publish a separate public RC for v0.3.1. After pull-request and
 `main` CI pass, a protected manual build from `main` supplies the first exact APK
 for the complete device gate. Only after approval is the stable tag created; its
 hidden Draft asset must independently repeat the same gate before that same
@@ -40,7 +43,7 @@ Release is made public as stable.
 
 ## Next
 
-Priorities after v0.3.0:
+Priorities after v0.3.1:
 
 - Improve draft recovery and protection against accidental data loss
 - Detect external file changes and resolve save conflicts safely

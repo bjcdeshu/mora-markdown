@@ -4,11 +4,12 @@ Updated: 2026-07-25
 
 ## Current stage
 
-Mora `v0.3.0` (`versionCode` 4) is the first stable-release target and the current
-release-preparation baseline. It supersedes the planned stable v0.2.0, which was
-not published; signed `v0.2.0-rc.1` remains a historical public Pre-release.
+Mora `v0.3.1` (`versionCode` 5) is the first stable-release target and the current
+release-preparation baseline. It supersedes both the planned stable v0.2.0, which
+was not published, and the blocked v0.3.0 candidate; signed `v0.2.0-rc.1` remains
+a historical public Pre-release.
 
-The v0.3.0 implementation adds six focused improvements to the existing
+The v0.3 series adds six focused improvements to the existing
 single-document workflow:
 
 - a subtle proportional right-edge reading-position thumb with direct dragging;
@@ -19,17 +20,23 @@ single-document workflow:
 - predictive document-to-Home Back that previews the real composed Home beneath
   the current document on supported Android versions.
 
-No public v0.3.0 RC is planned. The release path deliberately validates two exact
+The v0.3.1 patch also restores responsive reader scrolling by leaving WebView
+touch motion unconsumed, and makes predictive Back quieter by reducing the
+document transform, keeping Home stable, and avoiding unnecessary per-frame
+composition work.
+
+No public v0.3.1 RC is planned. The release path deliberately validates two exact
 assets: first the protected manual Actions artifact built from `main`, then the
 new APK rebuilt behind the hidden stable-tag Draft. The same approved Draft
 Release is finally edited to stable without moving its tag or replacing its
 attachments.
 
-An earlier protected v0.3.0 candidate was generated and identity-verified from the
-pre-polish `main` baseline, but it was superseded before tag approval when the
-predictive-Back destination preview was refined. It must not be tagged or released.
-The next signed candidate must be built from the final release-metadata commit after
-the polish is merged and `main` CI is green.
+The annotated `v0.3.0` tag and its hidden Draft are permanently blocked from
+publication. Exact Draft-asset testing found a full-screen Compose pointer
+consumer intercepting reader motion events and an overly forceful predictive-Back
+transition. The tag and attachments remain unchanged as audit history; they must
+not be moved, replaced, or published. The next signed candidate must be v0.3.1,
+built from its final release-metadata commit after `main` CI is green.
 
 The first long-term RSA-2048 identity was generated outside the repository on
 2026-07-24. Its encrypted keystore backups and independently stored credentials
@@ -71,7 +78,10 @@ The release-preparation work remains deliberately focused:
 - launcher switching uses three stable component aliases and never intentionally
   disables every launcher entry;
 - the Reader keeps its WebView security boundary while adding native progress
-  drawing and pointer handling;
+  drawing and local pointer handling without placing a full-screen Compose
+  consumer above WebView motion events;
+- predictive-Back progress updates invalidate graphics layers instead of
+  recomposing the text-heavy document tree, while Home remains visually stable;
 - CI actions are pinned to current Node 24-compatible commits and monitored
   monthly by Dependabot.
 
@@ -119,7 +129,7 @@ Release signing material must stay outside Git and be backed up independently;
 GitHub Secrets are delivery infrastructure, not a backup.
 
 - Pull-request and `main` CI build only Debug APKs and never receive signing secrets.
-- The release-eligible v0.3.0 signed candidate may be produced only from the final
+- The release-eligible v0.3.1 signed candidate may be produced only from the final
   release-metadata commit on `main` through the protected release environment; its
   exact downloaded APK must pass identity checks and the complete device matrix.
 - Only explicit maintainer approval of that exact candidate permits the annotated
@@ -131,6 +141,6 @@ GitHub Secrets are delivery infrastructure, not a backup.
   `draft=false`, `prerelease=false`, and latest. Do not move the tag or replace
   attachments.
 - Future public RCs, if used, must remain labeled as Pre-releases and never weaken
-  the stable gate; v0.3.0 does not use one.
+  the stable gate; v0.3.1 does not use one.
 
 The operational checklist and credential names are maintained in [docs/RELEASING.md](docs/RELEASING.md).
