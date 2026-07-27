@@ -4,7 +4,7 @@
 
 [简体中文](README.zh-CN.md)
 
-**[Download the latest release](https://github.com/bjcdeshu/mora-markdown/releases/latest)** · Android 8.0+ · [Feedback](https://github.com/bjcdeshu/mora-markdown/issues/15) · [Report a bug](https://github.com/bjcdeshu/mora-markdown/issues/new?template=bug_report.yml)
+**[Download the latest release](https://github.com/bjcdeshu/mora-markdown/releases/latest)** · Android 8.0+ · [Feedback](https://github.com/bjcdeshu/mora-markdown/issues/15) · [Report a bug](https://github.com/bjcdeshu/mora-markdown/issues/new?template=bug_report.yml) · [LINUX DO](https://linux.do/)
 
 ![Mora reading and table-of-contents screens](docs/assets/social-preview.png)
 
