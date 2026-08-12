@@ -9,6 +9,7 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
+import android.os.Process;
 import android.os.SystemClock;
 import android.provider.DocumentsContract;
 import android.provider.DocumentsProvider;
@@ -267,6 +268,9 @@ public final class TestDocumentsProvider extends DocumentsProvider {
         Bundle frameworkResult = super.call(method, arg, extras);
         if (frameworkResult != null) {
             return frameworkResult;
+        }
+        if (Binder.getCallingUid() != Process.myUid()) {
+            throw new SecurityException("Fixture control requires the test APK UID");
         }
         switch (method) {
             case METHOD_CONFIGURE:

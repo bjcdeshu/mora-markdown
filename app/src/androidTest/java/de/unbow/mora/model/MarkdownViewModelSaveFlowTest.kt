@@ -1,6 +1,5 @@
 package de.unbow.mora.model
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -25,6 +24,7 @@ import de.unbow.mora.R
 import de.unbow.mora.data.DocumentFailure
 import de.unbow.mora.data.DocumentRecoveryRepository
 import de.unbow.mora.data.DocumentRepository
+import de.unbow.mora.testprovider.TestDocumentsControlProvider
 import de.unbow.mora.testprovider.TestDocumentsProvider
 import java.io.File
 import java.util.concurrent.CountDownLatch
@@ -55,7 +55,7 @@ class MarkdownViewModelSaveFlowTest {
     @Before
     fun setUp() {
         targetContext = instrumentation.targetContext
-        provider = ProviderHarness(instrumentation, targetContext)
+        provider = ProviderHarness(targetContext)
         provider.reset()
         clearPersistentTestState(targetContext)
     }
@@ -278,7 +278,7 @@ class MoraAppSaveFlowRecreationTest {
     @Before
     fun setUp() {
         targetContext = instrumentation.targetContext
-        provider = ProviderHarness(instrumentation, targetContext)
+        provider = ProviderHarness(targetContext)
         provider.reset()
         clearPersistentTestState(targetContext)
         composeRule.runOnIdle {
@@ -534,7 +534,6 @@ class MoraAppSaveFlowRecreationTest {
 }
 
 private class ProviderHarness(
-    private val instrumentation: android.app.Instrumentation,
     private val targetContext: Context,
 ) {
 
@@ -548,73 +547,58 @@ private class ProviderHarness(
         partialWriteFailureAfterBytes: Int? = null,
         grantFlags: Int?,
     ): Uri {
-        withManageDocumentsPermission {
+        assertNotNull(
+            targetContext.contentResolver.call(
+                TestDocumentsControlProvider.AUTHORITY,
+                TestDocumentsProvider.METHOD_CONFIGURE,
+                documentId,
+                Bundle().apply {
+                    putByteArray(TestDocumentsProvider.KEY_BYTES, bytes)
+                    putString(TestDocumentsProvider.KEY_DISPLAY_NAME, "$documentId.md")
+                    putInt(TestDocumentsProvider.KEY_DOCUMENT_FLAGS, documentFlags)
+                    putBoolean(TestDocumentsProvider.KEY_FAIL_READS, failReads)
+                    putBoolean(TestDocumentsProvider.KEY_FAIL_WRITES, failWrites)
+                    putBoolean(
+                        TestDocumentsProvider.KEY_FAIL_VERIFICATION_READ_AFTER_WRITE,
+                        failVerificationReadAfterWrite,
+                    )
+                    partialWriteFailureAfterBytes?.let { byteCount ->
+                        putInt(
+                            TestDocumentsProvider.KEY_PARTIAL_WRITE_FAILURE_AFTER_BYTES,
+                            byteCount,
+                        )
+                    }
+                },
+            ),
+        )
+        if (grantFlags != null) {
             assertNotNull(
                 targetContext.contentResolver.call(
-                    TestDocumentsProvider.AUTHORITY,
-                    TestDocumentsProvider.METHOD_CONFIGURE,
+                    TestDocumentsControlProvider.AUTHORITY,
+                    TestDocumentsProvider.METHOD_GRANT,
                     documentId,
                     Bundle().apply {
-                        putByteArray(TestDocumentsProvider.KEY_BYTES, bytes)
-                        putString(TestDocumentsProvider.KEY_DISPLAY_NAME, "$documentId.md")
-                        putInt(TestDocumentsProvider.KEY_DOCUMENT_FLAGS, documentFlags)
-                        putBoolean(TestDocumentsProvider.KEY_FAIL_READS, failReads)
-                        putBoolean(TestDocumentsProvider.KEY_FAIL_WRITES, failWrites)
-                        putBoolean(
-                            TestDocumentsProvider.KEY_FAIL_VERIFICATION_READ_AFTER_WRITE,
-                            failVerificationReadAfterWrite,
+                        putString(
+                            TestDocumentsProvider.KEY_TARGET_PACKAGE,
+                            targetContext.packageName,
                         )
-                        partialWriteFailureAfterBytes?.let { byteCount ->
-                            putInt(
-                                TestDocumentsProvider.KEY_PARTIAL_WRITE_FAILURE_AFTER_BYTES,
-                                byteCount,
-                            )
-                        }
+                        putInt(TestDocumentsProvider.KEY_GRANT_FLAGS, grantFlags)
                     },
                 ),
             )
-            if (grantFlags != null) {
-                assertNotNull(
-                    targetContext.contentResolver.call(
-                        TestDocumentsProvider.AUTHORITY,
-                        TestDocumentsProvider.METHOD_GRANT,
-                        documentId,
-                        Bundle().apply {
-                            putString(
-                                TestDocumentsProvider.KEY_TARGET_PACKAGE,
-                                targetContext.packageName,
-                            )
-                            putInt(TestDocumentsProvider.KEY_GRANT_FLAGS, grantFlags)
-                        },
-                    ),
-                )
-            }
         }
         return TestDocumentsProvider.documentUri(documentId)
     }
 
     fun reset() {
-        withManageDocumentsPermission {
-            assertNotNull(
-                targetContext.contentResolver.call(
-                    TestDocumentsProvider.AUTHORITY,
-                    TestDocumentsProvider.METHOD_RESET,
-                    null,
-                    null,
-                ),
-            )
-        }
-    }
-
-    private inline fun <T> withManageDocumentsPermission(block: () -> T): T {
-        instrumentation.uiAutomation.adoptShellPermissionIdentity(
-            Manifest.permission.MANAGE_DOCUMENTS,
+        assertNotNull(
+            targetContext.contentResolver.call(
+                TestDocumentsControlProvider.AUTHORITY,
+                TestDocumentsProvider.METHOD_RESET,
+                null,
+                null,
+            ),
         )
-        return try {
-            block()
-        } finally {
-            instrumentation.uiAutomation.dropShellPermissionIdentity()
-        }
     }
 }
 

@@ -2,6 +2,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application>
+        <!--
+            Fixture control is separate from the system-only DocumentsProvider surface.
+            The permission is declared and requested only by the target Debug APK.
+        -->
+        <provider
+            android:name="de.unbow.mora.testprovider.TestDocumentsControlProvider"
+            android:authorities="de.unbow.mora.test.documents.control"
+            android:exported="true"
+            android:permission="de.unbow.mora.permission.TEST_PROVIDER_CONTROL" />
+
         <provider
             android:name="de.unbow.mora.testprovider.TestDocumentsProvider"
             android:authorities="de.unbow.mora.test.documents"

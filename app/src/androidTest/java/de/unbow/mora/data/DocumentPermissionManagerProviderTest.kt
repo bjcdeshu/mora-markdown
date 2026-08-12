@@ -1,6 +1,5 @@
 package de.unbow.mora.data
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -11,6 +10,7 @@ import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
 import de.unbow.mora.IncomingDocumentRequest
 import de.unbow.mora.model.MarkdownViewModel
+import de.unbow.mora.testprovider.TestDocumentsControlProvider
 import de.unbow.mora.testprovider.TestDocumentsProvider
 import java.io.File
 import org.junit.After
@@ -198,30 +198,28 @@ class DocumentPermissionManagerProviderTest {
         }
 
     private fun configureDocument(documentId: String): Uri {
-        withManageDocumentsPermission {
-            assertNotNull(
-                targetContext.contentResolver.call(
-                    TestDocumentsProvider.AUTHORITY,
-                    TestDocumentsProvider.METHOD_CONFIGURE,
-                    documentId,
-                    Bundle().apply {
-                        putByteArray(TestDocumentsProvider.KEY_BYTES, "# $documentId".toByteArray())
-                        putString(TestDocumentsProvider.KEY_DISPLAY_NAME, "$documentId.md")
-                    },
-                ),
-            )
-            assertNotNull(
-                targetContext.contentResolver.call(
-                    TestDocumentsProvider.AUTHORITY,
-                    TestDocumentsProvider.METHOD_GRANT,
-                    documentId,
-                    Bundle().apply {
-                        putString(TestDocumentsProvider.KEY_TARGET_PACKAGE, targetContext.packageName)
-                        putInt(TestDocumentsProvider.KEY_GRANT_FLAGS, READ_PERSISTABLE_GRANTS)
-                    },
-                ),
-            )
-        }
+        assertNotNull(
+            targetContext.contentResolver.call(
+                TestDocumentsControlProvider.AUTHORITY,
+                TestDocumentsProvider.METHOD_CONFIGURE,
+                documentId,
+                Bundle().apply {
+                    putByteArray(TestDocumentsProvider.KEY_BYTES, "# $documentId".toByteArray())
+                    putString(TestDocumentsProvider.KEY_DISPLAY_NAME, "$documentId.md")
+                },
+            ),
+        )
+        assertNotNull(
+            targetContext.contentResolver.call(
+                TestDocumentsControlProvider.AUTHORITY,
+                TestDocumentsProvider.METHOD_GRANT,
+                documentId,
+                Bundle().apply {
+                    putString(TestDocumentsProvider.KEY_TARGET_PACKAGE, targetContext.packageName)
+                    putInt(TestDocumentsProvider.KEY_GRANT_FLAGS, READ_PERSISTABLE_GRANTS)
+                },
+            ),
+        )
         return TestDocumentsProvider.documentUri(documentId)
     }
 
@@ -254,16 +252,14 @@ class DocumentPermissionManagerProviderTest {
     }
 
     private fun resetProvider() {
-        withManageDocumentsPermission {
-            assertNotNull(
-                targetContext.contentResolver.call(
-                    TestDocumentsProvider.AUTHORITY,
-                    TestDocumentsProvider.METHOD_RESET,
-                    null,
-                    null,
-                ),
-            )
-        }
+        assertNotNull(
+            targetContext.contentResolver.call(
+                TestDocumentsControlProvider.AUTHORITY,
+                TestDocumentsProvider.METHOD_RESET,
+                null,
+                null,
+            ),
+        )
     }
 
     private fun clearAppTestState() {
@@ -274,17 +270,6 @@ class DocumentPermissionManagerProviderTest {
         ).edit()
             .clear()
             .commit()
-    }
-
-    private inline fun <T> withManageDocumentsPermission(block: () -> T): T {
-        instrumentation.uiAutomation.adoptShellPermissionIdentity(
-            Manifest.permission.MANAGE_DOCUMENTS,
-        )
-        return try {
-            block()
-        } finally {
-            instrumentation.uiAutomation.dropShellPermissionIdentity()
-        }
     }
 
     companion object {

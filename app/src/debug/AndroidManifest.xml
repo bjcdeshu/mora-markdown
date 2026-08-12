@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        The separate androidTest APK uses this signature-only permission for its
+        deterministic provider control channel. Release builds never merge this
+        debug-only manifest.
+    -->
+    <permission
+        android:name="de.unbow.mora.permission.TEST_PROVIDER_CONTROL"
+        android:protectionLevel="signature" />
+
+    <uses-permission android:name="de.unbow.mora.permission.TEST_PROVIDER_CONTROL" />
+
+</manifest>
