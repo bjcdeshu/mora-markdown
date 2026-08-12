@@ -37,6 +37,7 @@ import de.unbow.mora.R
 internal fun MarkdownEditor(
     value: TextFieldValue,
     onValueChange: (TextFieldValue) -> Unit,
+    enabled: Boolean = true,
 ) {
     val scrollState = rememberScrollState()
     val cursorColor = MaterialTheme.colorScheme.primary
@@ -49,6 +50,7 @@ internal fun MarkdownEditor(
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
+            enabled = enabled,
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
@@ -89,6 +91,7 @@ private data class MarkdownAction(
 internal fun EditorToolbar(
     value: TextFieldValue,
     onValueChange: (TextFieldValue) -> Unit,
+    enabled: Boolean = true,
 ) {
     val actions = markdownActions()
     Surface(
@@ -106,6 +109,7 @@ internal fun EditorToolbar(
             items(actions) { action ->
                 FilledTonalButton(
                     onClick = { onValueChange(applyMarkdownAction(value, action)) },
+                    enabled = enabled,
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                     shape = RoundedCornerShape(14.dp),
                 ) {

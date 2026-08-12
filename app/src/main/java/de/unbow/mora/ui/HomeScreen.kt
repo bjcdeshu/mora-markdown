@@ -38,6 +38,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import de.unbow.mora.R
+import de.unbow.mora.data.DirtyDocumentRecovery
 import de.unbow.mora.data.RecentDocument
 import java.text.DateFormat
 import java.util.Date
@@ -57,15 +59,20 @@ import java.util.concurrent.TimeUnit
 internal fun HomeScreen(
     modifier: Modifier = Modifier,
     recentDocuments: List<RecentDocument>,
+    recoverableWork: DirtyDocumentRecovery?,
     snackbarHostState: SnackbarHostState,
     showSnackbarHost: Boolean = true,
     interactive: Boolean = true,
     onOpenFile: () -> Unit,
     onNewDraft: () -> Unit,
+    onRecover: (DirtyDocumentRecovery) -> Unit,
+    onSaveRecoveryCopy: (DirtyDocumentRecovery) -> Unit,
+    onDiscardRecovery: (DirtyDocumentRecovery) -> Unit,
     onOpenRecent: (RecentDocument) -> Unit,
     onRemoveRecent: (RecentDocument) -> Unit,
     onSettings: () -> Unit,
 ) {
+    val documentActionsEnabled = interactive && recoverableWork == null
     Scaffold(
         modifier = modifier,
         snackbarHost = {
@@ -126,6 +133,96 @@ internal fun HomeScreen(
                 }
             }
 
+            recoverableWork?.let { recovery ->
+                item(key = "recoverable-work") {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+                        ) {
+                            Text(
+                                text = stringResource(
+                                    if (recovery.isOriginalBackup) {
+                                        R.string.original_backup_available_title
+                                    } else {
+                                        R.string.recovery_available_title
+                                    },
+                                ),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = recovery.name.ifBlank {
+                                    stringResource(R.string.default_document_filename)
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = stringResource(
+                                    if (recovery.isOriginalBackup) {
+                                        R.string.original_backup_available_body
+                                    } else {
+                                        R.string.recovery_available_body
+                                    },
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
+                                TextButton(
+                                    modifier = Modifier.weight(1f),
+                                    enabled = interactive,
+                                    onClick = {
+                                        if (interactive) onDiscardRecovery(recovery)
+                                    },
+                                ) {
+                                    Text(
+                                        stringResource(
+                                            if (recovery.isOriginalBackup) {
+                                                R.string.delete_backup
+                                            } else {
+                                                R.string.discard_changes
+                                            },
+                                        ),
+                                    )
+                                }
+                                TextButton(
+                                    modifier = Modifier.weight(1f),
+                                    enabled = interactive,
+                                    onClick = {
+                                        if (interactive) onSaveRecoveryCopy(recovery)
+                                    },
+                                ) { Text(stringResource(R.string.save_copy)) }
+                                TextButton(
+                                    modifier = Modifier.weight(1f),
+                                    enabled = interactive,
+                                    onClick = { if (interactive) onRecover(recovery) },
+                                ) {
+                                    Text(
+                                        stringResource(
+                                            if (recovery.isOriginalBackup) {
+                                                R.string.recover_original
+                                            } else {
+                                                R.string.recover_document
+                                            },
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             recentDocuments.firstOrNull()?.let { document ->
                 item {
                     Column {
@@ -133,11 +230,12 @@ internal fun HomeScreen(
                         Spacer(Modifier.height(10.dp))
                         ElevatedCard(
                             onClick = {
-                                if (interactive) onOpenRecent(document)
+                                if (documentActionsEnabled) onOpenRecent(document)
                             },
+                            enabled = documentActionsEnabled,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .focusProperties { canFocus = interactive },
+                                .focusProperties { canFocus = documentActionsEnabled },
                             shape = RoundedCornerShape(26.dp),
                             colors = CardDefaults.elevatedCardColors(
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -180,10 +278,11 @@ internal fun HomeScreen(
                                 }
                                 IconButton(
                                     onClick = {
-                                        if (interactive) onRemoveRecent(document)
+                                        if (documentActionsEnabled) onRemoveRecent(document)
                                     },
+                                    enabled = documentActionsEnabled,
                                     modifier = Modifier.focusProperties {
-                                        canFocus = interactive
+                                        canFocus = documentActionsEnabled
                                     },
                                 ) {
                                     Icon(
@@ -205,11 +304,12 @@ internal fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     FilledTonalButton(
-                        onClick = { if (interactive) onOpenFile() },
+                        onClick = { if (documentActionsEnabled) onOpenFile() },
+                        enabled = documentActionsEnabled,
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 54.dp)
-                            .focusProperties { canFocus = interactive },
+                            .focusProperties { canFocus = documentActionsEnabled },
                         shape = RoundedCornerShape(18.dp),
                     ) {
                         Icon(Icons.Outlined.FolderOpen, contentDescription = null)
@@ -217,11 +317,12 @@ internal fun HomeScreen(
                         Text(stringResource(R.string.open_document))
                     }
                     FilledTonalButton(
-                        onClick = { if (interactive) onNewDraft() },
+                        onClick = { if (documentActionsEnabled) onNewDraft() },
+                        enabled = documentActionsEnabled,
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 54.dp)
-                            .focusProperties { canFocus = interactive },
+                            .focusProperties { canFocus = documentActionsEnabled },
                         shape = RoundedCornerShape(18.dp),
                     ) {
                         Icon(Icons.Outlined.Add, contentDescription = null)
@@ -239,9 +340,13 @@ internal fun HomeScreen(
                 ) { document ->
                     RecentDocumentRow(
                         document = document,
-                        interactive = interactive,
-                        onOpen = { if (interactive) onOpenRecent(document) },
-                        onRemove = { if (interactive) onRemoveRecent(document) },
+                        interactive = documentActionsEnabled,
+                        onOpen = {
+                            if (documentActionsEnabled) onOpenRecent(document)
+                        },
+                        onRemove = {
+                            if (documentActionsEnabled) onRemoveRecent(document)
+                        },
                     )
                 }
             } else if (recentDocuments.isEmpty()) {
@@ -292,6 +397,7 @@ private fun RecentDocumentRow(
 ) {
     ElevatedCard(
         onClick = onOpen,
+        enabled = interactive,
         modifier = Modifier
             .fillMaxWidth()
             .focusProperties { canFocus = interactive },
@@ -328,6 +434,7 @@ private fun RecentDocumentRow(
             }
             IconButton(
                 onClick = onRemove,
+                enabled = interactive,
                 modifier = Modifier.focusProperties { canFocus = interactive },
             ) {
                 Icon(

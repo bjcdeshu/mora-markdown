@@ -1,6 +1,6 @@
 # Mora Project Status
 
-Updated: 2026-07-25
+Updated: 2026-08-12
 
 ## Current stage
 
@@ -8,6 +8,15 @@ Mora `v0.3.3` (`versionCode` 7) is the current public stable release. It is a fo
 launcher-identity correction over `v0.3.2` and intentionally
 keeps the complete v0.3.2 product behavior; signed `v0.2.0-rc.1` remains a
 historical public Pre-release.
+
+Development is now focused on the unreleased v0.4 storage-reliability milestone.
+The working implementation adds strict 5 MiB UTF-8 I/O, BOM preservation,
+content-version conflict handling, dirty-draft recovery, an earliest-known-good
+pre-write backup, URI-grant lifecycle reconciliation, and globally serialized
+save/recovery transitions. It also adds deterministic API 36 DocumentsProvider
+instrumentation and a non-mutating generated-icon verification gate. This work
+does not change the public stable version metadata and has not been tagged or
+published.
 
 The v0.3 series keeps Mora's single-document workflow while providing:
 
@@ -154,6 +163,10 @@ It is not a release candidate and cannot update an officially signed installatio
 
 Changes involving file providers, external intents, saving, layout, launcher
 aliases, or accessibility also require focused emulator or real-device checks.
+The unreleased v0.4 storage work adds `connectedDebugAndroidTest` on an Android
+16 / API 36 emulator as a repeatable provider-contract gate. It does not claim to
+cover OEM picker UI or network-backed cloud-provider behavior; those omissions
+must remain explicit whenever emulator-only validation is accepted.
 
 The final release commit must pass the full local Debug command and both GitHub
 Actions paths before the immutable stable tag is created. No lint baseline, broad

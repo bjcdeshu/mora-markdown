@@ -46,6 +46,21 @@
     <string name="language_follows_device">跟随设备语言</string>
     <string name="language_change_in_android">在 Android 设置中更改</string>
     <string name="language_settings_unavailable">此设备无法打开应用语言设置。</string>
+    <string name="settings_about">关于</string>
+    <string name="app_version_format">版本 %1$s（%2$d）</string>
+    <string name="app_version_unavailable">无法获取版本信息</string>
+    <string name="about_repository">代码仓库</string>
+    <string name="about_latest_release">最新版本</string>
+    <string name="about_feedback">反馈</string>
+    <string name="about_mora_license">Mora 许可证</string>
+    <string name="about_third_party_notices">第三方声明</string>
+    <string name="copy_diagnostics">复制诊断信息</string>
+    <string name="diagnostics_privacy_note">仅包含版本、Android SDK、设备制造商与型号、区域设置、应用主题和应用语言。</string>
+    <string name="diagnostics_clipboard_label">Mora 诊断信息</string>
+    <string name="diagnostics_copied">诊断信息已复制</string>
+    <string name="diagnostics_copy_failed">无法复制诊断信息。</string>
+    <string name="about_link_open_failed">没有可打开此链接的应用。</string>
+    <string name="close">关闭</string>
 
     <string name="default_document_filename">文档.md</string>
     <string name="untitled_filename_base">未命名</string>
@@ -54,8 +69,14 @@
     <string name="new_draft_template"># 未命名文档\n\n从这里开始写作。</string>
     <string name="open_document_failed">无法打开“%1$s”。</string>
     <string name="document_saved">已保存</string>
+    <string name="document_copy_saved">副本已保存</string>
     <string name="document_save_failed">无法保存这个文档。</string>
     <string name="document_requires_save_as">请选择位置保存这个文档。</string>
+    <string name="document_too_large">Mora 支持最大 5 MiB 的 Markdown 文件。</string>
+    <string name="document_invalid_utf8">此文件不是有效的 UTF-8，Mora 未修改原文件。</string>
+    <string name="document_permission_lost">Mora 已失去此文件的访问权限，请保存副本或重新选择文件。</string>
+    <string name="document_recovery_failed">Mora 无法建立恢复副本，因此没有修改原文件。</string>
+    <string name="document_verification_failed">文件提供器未确认保存结果，恢复副本仍被保留。</string>
     <string name="read_only_document_notice">原文件为只读，修改将另存为新文件。</string>
     <string name="unsaved_changes">未保存</string>
 
@@ -97,8 +118,25 @@
     <string name="discard_changes_title">放弃未保存的修改？</string>
     <string name="discard_changes_body">返回后，当前文档中的修改不会保留。</string>
     <string name="discard_changes">放弃修改</string>
+    <string name="unsaved_close_title">关闭前保存修改？</string>
+    <string name="unsaved_close_body">可以保存当前版本、放弃修改，或继续编辑。</string>
     <string name="open_new_document_title">打开新文档？</string>
-    <string name="open_new_document_body">当前文档还有未保存的修改。继续后，这些修改不会保留。</string>
+    <string name="open_new_document_body">当前文档还有未保存的修改，可以先保存、放弃修改，或取消。</string>
     <string name="discard_and_open">放弃并打开</string>
+    <string name="recovery_available_title">发现未保存内容</string>
+    <string name="recovery_available_body">上次会话结束后，Mora 保留了这份仅存于本机的恢复副本。</string>
+    <string name="recover_document">恢复</string>
+    <string name="original_backup_available_title">已保护原始备份</string>
+    <string name="original_backup_available_body">上次写入可能使源文件不完整。删除前，请先恢复或导出这份已知完好的原始内容。</string>
+    <string name="recover_original">恢复原始内容</string>
+    <string name="delete_backup">删除备份</string>
+    <string name="wait_for_save">请等待当前保存完成。</string>
+    <string name="external_change_title">文件已在其他位置修改</string>
+    <string name="external_change_body">可以重新载入外部版本、再次检查后覆盖，或将当前修改保存为副本。</string>
+    <string name="overwrite_document">覆盖</string>
+    <string name="reload_document">重新载入</string>
+    <string name="save_copy">保存副本</string>
+    <string name="save_failed_title">保存未完成</string>
+    <string name="retry">重试</string>
     <string name="cancel">取消</string>
 </resources>

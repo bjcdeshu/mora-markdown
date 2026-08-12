@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import de.unbow.mora.data.AppSettings
 import de.unbow.mora.data.AppSettingsRepository
+import de.unbow.mora.data.sanitizeRecoveryDocumentName
 import de.unbow.mora.platform.LauncherIconManager
 import de.unbow.mora.ui.MoraApp
 import de.unbow.mora.ui.theme.MoraTheme
@@ -102,9 +103,11 @@ class MainActivity : ComponentActivity() {
             id = requestCounter,
             uri = uri,
             sharedText = sharedText,
-            suggestedName = sourceIntent.getStringExtra(Intent.EXTRA_TITLE)
-                ?.takeIf(String::isNotBlank)
-                ?: getString(R.string.shared_document_filename),
+            suggestedName = sanitizeRecoveryDocumentName(
+                sourceIntent.getStringExtra(Intent.EXTRA_TITLE)
+                    ?.takeIf(String::isNotBlank)
+                    ?: getString(R.string.shared_document_filename),
+            ),
             grantedFlags = sourceIntent.flags,
         )
     }

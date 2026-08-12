@@ -52,6 +52,21 @@
     <string name="language_follows_device">Follows device language</string>
     <string name="language_change_in_android">Change in Android settings</string>
     <string name="language_settings_unavailable">App language settings aren’t available on this device.</string>
+    <string name="settings_about">About</string>
+    <string name="app_version_format">Version %1$s (%2$d)</string>
+    <string name="app_version_unavailable">Version information unavailable</string>
+    <string name="about_repository">Repository</string>
+    <string name="about_latest_release">Latest release</string>
+    <string name="about_feedback">Feedback</string>
+    <string name="about_mora_license">Mora license</string>
+    <string name="about_third_party_notices">Third-party notices</string>
+    <string name="copy_diagnostics">Copy diagnostics</string>
+    <string name="diagnostics_privacy_note">Includes only version, Android SDK, device manufacturer and model, locale, app theme, and app language.</string>
+    <string name="diagnostics_clipboard_label">Mora diagnostics</string>
+    <string name="diagnostics_copied">Diagnostics copied</string>
+    <string name="diagnostics_copy_failed">Couldn’t copy diagnostics.</string>
+    <string name="about_link_open_failed">No app can open this link.</string>
+    <string name="close">Close</string>
 
     <string name="default_document_filename">Document.md</string>
     <string name="untitled_filename_base">Untitled</string>
@@ -60,8 +75,14 @@
     <string name="new_draft_template"># Untitled document\n\nStart writing here.</string>
     <string name="open_document_failed">Couldn’t open “%1$s”.</string>
     <string name="document_saved">Saved</string>
+    <string name="document_copy_saved">Copy saved</string>
     <string name="document_save_failed">Couldn’t save this document.</string>
     <string name="document_requires_save_as">Choose a location to save this document.</string>
+    <string name="document_too_large">Mora supports Markdown files up to 5 MiB.</string>
+    <string name="document_invalid_utf8">This file isn’t valid UTF-8. Mora left it unchanged.</string>
+    <string name="document_permission_lost">Mora no longer has access to this file. Save a copy or choose it again.</string>
+    <string name="document_recovery_failed">Mora couldn’t secure a recovery copy, so the original file was not changed.</string>
+    <string name="document_verification_failed">The provider didn’t confirm the saved bytes. Your recovery copy is still available.</string>
     <string name="read_only_document_notice">The original file is read-only. Your changes will be saved as a new file.</string>
     <string name="unsaved_changes">Unsaved</string>
 
@@ -109,8 +130,25 @@
     <string name="discard_changes_title">Discard unsaved changes?</string>
     <string name="discard_changes_body">Your changes to this document will not be kept.</string>
     <string name="discard_changes">Discard changes</string>
+    <string name="unsaved_close_title">Save changes before closing?</string>
+    <string name="unsaved_close_body">Save this revision, discard it, or keep editing.</string>
     <string name="open_new_document_title">Open a new document?</string>
-    <string name="open_new_document_body">This document has unsaved changes. Continuing will discard them.</string>
+    <string name="open_new_document_body">The current document has unsaved changes. Save them, discard them, or cancel.</string>
     <string name="discard_and_open">Discard and open</string>
+    <string name="recovery_available_title">Unsaved work found</string>
+    <string name="recovery_available_body">Mora kept this private recovery copy after the previous session ended.</string>
+    <string name="recover_document">Recover</string>
+    <string name="original_backup_available_title">Original backup protected</string>
+    <string name="original_backup_available_body">A previous write may have left the source incomplete. Recover or export this known-good original before deleting it.</string>
+    <string name="recover_original">Recover original</string>
+    <string name="delete_backup">Delete backup</string>
+    <string name="wait_for_save">Wait for the current save to finish.</string>
+    <string name="external_change_title">This file changed elsewhere</string>
+    <string name="external_change_body">Reload the external version, overwrite only after a second check, or save your edits as a copy.</string>
+    <string name="overwrite_document">Overwrite</string>
+    <string name="reload_document">Reload</string>
+    <string name="save_copy">Save copy</string>
+    <string name="save_failed_title">Save didn’t complete</string>
+    <string name="retry">Retry</string>
     <string name="cancel">Cancel</string>
 </resources>

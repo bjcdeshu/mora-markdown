@@ -89,10 +89,72 @@ The Debug APK is written to:
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Automated document-provider instrumentation
+
+Android CI also boots one Android 16 / API 36 emulator and runs:
+
+```bash
+./gradlew connectedDebugAndroidTest
+```
+
+This job talks directly to a deterministic `androidTest` DocumentsProvider; it
+does not automate the system file picker. It covers strict and bounded provider
+reads (including absent or false size metadata), malformed UTF-8, provider and
+session write flags, temporary versus persistable URI grants, provider-side
+revocation, write-and-reopen verification, external content-version changes,
+slow bounded reads, and provider read/write failures. The failure fixtures also
+cover providers that truncate a target or persist only a prefix before reporting
+a write error, so the recovery contract cannot assume a failed write left the
+original target intact.
+
+The same emulator job exercises the ViewModel and Compose state machine against
+that provider: read-only Save As, permission loss, conflict rechecks, Save Copy,
+Reload, dirty recovery after a process-like ViewModel restart, failed-save
+Retry/Cancel, dirty-close choices, incoming-request replacement protection, and
+pending failure/post-save continuation across Activity recreation. It also checks
+managed-grant release/retention and the external `application/markdown` intent
+contract without launching the system picker.
+
+This is a repeatable SAF contract gate, not a claim that every Android storage
+provider behaves identically. It does not exercise picker UI, OEM file managers,
+networked cloud-provider lifecycle, or provider-specific permission restoration.
+The repository API also cannot promise prompt cancellation of an already-blocked
+provider stream because `ContentResolver.openInputStream` does not accept a
+`CancellationSignal`; the slow-read fixture therefore asserts the byte bound and
+completion deadline, not transport-level cancellation.
+When the maintainer explicitly accepts emulator-only validation for a release,
+record that omission and use this green API 36 job plus the exact-candidate
+emulator smoke as the storage baseline.
+
+### v0.4 real-device and provider gate
+
+Emulator-only validation is sufficient for development pull requests, but it
+does not authorize a stable v0.4 tag. Before publishing stable v0.4, install the
+exact signed candidate on real hardware and record device, Android version,
+provider name/version, scenario, result, and evidence for every row below:
+
+| Provider or condition | Required candidate checks |
+|---|---|
+| Local storage / Downloads | Open → edit → save → reopen; process kill with dirty edits; process kill during save and recovery export |
+| Read-only DocumentsProvider | No in-place Save; Save As and Save copy succeed without changing the source |
+| Representative sync or cloud DocumentsProvider | External modification conflict; Reload; confirmed Overwrite after a second version check; Save copy leaves the source unchanged |
+| Persisted permission revoked between sessions | Reopen and Save fail safely with a specific permission path; Retry/Save copy keep the edit available |
+| Recovery decisions | Recover, Save copy, and explicit Discard preserve or remove only the selected recovery record |
+| Support and launcher surfaces | About links, diagnostics allowlist/copy confirmation, and all launcher aliases work on the candidate |
+
+Any missing row, unexplained failure, or candidate rebuild blocks the stable
+tag. A maintainer may explicitly defer this matrix for a development snapshot or
+pre-release, but must record the omission and must not describe that build as
+having passed the stable provider gate.
+
 Pull-request and `main` CI repeat that Debug gate and then run
 `lintRelease assembleRelease` with a runner-generated one-run key. The job checks
 that R8, resource shrinking, mapping generation, Release packaging, and signature
-verification complete. It confirms that this temporary signer does not equal
+verification complete. The Release pre-build also resolves
+`releaseRuntimeClasspath`, maps every external module to a documented license
+family, and writes the exact coordinate audit to
+`app/build/reports/runtime-third-party-notices.txt`; an unknown module or missing
+notice fails the build. It confirms that this temporary signer does not equal
 Mora's registered certificate, deletes the key and Release APK, and uploads only
 the Debug APK.
 
