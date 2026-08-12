@@ -501,7 +501,16 @@ class MoraAppSaveFlowRecreationTest {
             .putExtra(Intent.EXTRA_TEXT, content)
             .putExtra(Intent.EXTRA_TITLE, "incoming.md")
         onMain {
-            instrumentation.callActivityOnNewIntent(composeRule.activity, intent)
+            val activity = composeRule.activity
+            val scenarioLaunchIntent = activity.intent
+            try {
+                instrumentation.callActivityOnNewIntent(activity, intent)
+            } finally {
+                // MainActivity intentionally keeps the latest external Intent. ActivityScenario,
+                // however, ignores lifecycle events when Activity.getIntent() no longer matches
+                // the Intent it launched, so restore only the harness identity after delivery.
+                activity.intent = scenarioLaunchIntent
+            }
         }
     }
 
