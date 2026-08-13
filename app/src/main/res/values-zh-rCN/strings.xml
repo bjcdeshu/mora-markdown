@@ -130,13 +130,22 @@
     <string name="original_backup_available_body">上次写入可能使源文件不完整。删除前，请先恢复或导出这份已知完好的原始内容。</string>
     <string name="recover_original">恢复原始内容</string>
     <string name="delete_backup">删除备份</string>
+    <string name="discard_recovery_title">放弃这份恢复副本？</string>
+    <string name="discard_recovery_body">这是这些未保存修改的唯一副本。此操作无法撤销。</string>
+    <string name="discard_recovery">放弃恢复副本</string>
+    <string name="delete_backup_confirmation_title">删除这份受保护的备份？</string>
+    <string name="delete_backup_confirmation_body">删除后，Mora 将无法再恢复这份已知完好的原始内容。此操作无法撤销。</string>
     <string name="wait_for_save">请等待当前保存完成。</string>
     <string name="external_change_title">文件已在其他位置修改</string>
-    <string name="external_change_body">可以重新载入外部版本、再次检查后覆盖，或将当前修改保存为副本。</string>
+    <string name="external_change_body">保存副本可以同时保留两个版本。如需替换任一版本，请先查看可能丢失内容的选项。</string>
+    <string name="choose_version">选择保留版本…</string>
+    <string name="choose_version_title">要保留哪个版本？</string>
+    <string name="choose_version_body">重新载入会放弃当前编辑；覆盖会替换在其他位置修改的版本。</string>
     <string name="overwrite_document">覆盖</string>
     <string name="reload_document">重新载入</string>
     <string name="save_copy">保存副本</string>
     <string name="save_failed_title">保存未完成</string>
     <string name="retry">重试</string>
+    <string name="try_another_location">尝试其他位置</string>
     <string name="cancel">取消</string>
 </resources>

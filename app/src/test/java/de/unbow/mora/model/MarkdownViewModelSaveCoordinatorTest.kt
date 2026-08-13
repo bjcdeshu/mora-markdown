@@ -1,6 +1,7 @@
 package de.unbow.mora.model
 
 import android.content.Intent
+import de.unbow.mora.data.DocumentFailure
 import de.unbow.mora.data.DocumentPermission
 import de.unbow.mora.data.DocumentVersion
 import org.junit.Assert.assertEquals
@@ -316,6 +317,30 @@ class MarkdownViewModelSaveCoordinatorTest {
                 documentSaving = true,
                 recoveryTransitioning = false,
             ),
+        )
+    }
+
+    @Test
+    fun `save result mailbox consumes only its current event once`() {
+        val first = PendingDocumentSaveResult(
+            eventId = 11L,
+            result = DocumentSaveResult.Failed(DocumentFailure.WRITE_FAILED),
+            sessionId = 7L,
+            contentRevision = 3L,
+        )
+        val second = PendingDocumentSaveResult(
+            eventId = 12L,
+            result = DocumentSaveResult.Saved,
+            sessionId = 7L,
+            contentRevision = 3L,
+        )
+        val pending = listOf(first, second)
+
+        assertEquals(pending, consumePendingSaveResult(pending, eventId = 99L))
+        assertEquals(listOf(second), consumePendingSaveResult(pending, eventId = first.eventId))
+        assertEquals(
+            listOf(second),
+            consumePendingSaveResult(listOf(second), eventId = first.eventId),
         )
     }
 }

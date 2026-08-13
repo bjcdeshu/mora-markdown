@@ -1,5 +1,6 @@
 package de.unbow.mora.ui
 
+import de.unbow.mora.model.canCompletePostSaveAction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

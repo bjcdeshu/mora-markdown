@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -55,6 +56,7 @@ import de.unbow.mora.data.ReaderSettingsRepository
 import de.unbow.mora.markdown.ReaderPalette
 import de.unbow.mora.markdown.ReaderPreferences
 import de.unbow.mora.model.DocumentSaveResult
+import de.unbow.mora.model.DocumentPostSaveAction
 import de.unbow.mora.model.DocumentUiError
 import de.unbow.mora.model.MarkdownViewModel
 import de.unbow.mora.model.displayDocumentName
@@ -88,17 +90,6 @@ internal fun isSaveAsResultCurrent(
     currentSessionId: Long,
 ): Boolean = requestSessionId != null && requestSessionId == currentSessionId
 
-internal fun canCompletePostSaveAction(
-    requestedSessionId: Long,
-    requestedContentRevision: Long,
-    currentSessionId: Long,
-    currentContentRevision: Long,
-    currentIsDirty: Boolean,
-    savedOriginal: Boolean,
-): Boolean = requestedSessionId == currentSessionId &&
-    requestedContentRevision == currentContentRevision &&
-    (!savedOriginal || !currentIsDirty)
-
 internal fun shouldConsumeAttemptedIncomingRequest(
     hasUri: Boolean,
     accepted: Boolean,
@@ -108,12 +99,6 @@ private enum class SaveDestinationPurpose {
     SAVE_DOCUMENT,
     SAVE_COPY,
     RECOVERY_COPY,
-}
-
-private enum class PostSaveAction {
-    NONE,
-    CLOSE,
-    OPEN_INCOMING,
 }
 
 @Composable
@@ -128,6 +113,8 @@ fun MoraApp(
     val state = markdownViewModel.uiState
     val pendingIncomingRequest = markdownViewModel.pendingIncomingRequest
     val pendingConflict = markdownViewModel.pendingConflict
+    val pendingSaveResult = markdownViewModel.pendingSaveResult
+    val postSaveAction = markdownViewModel.postSaveAction
     val recoverableWork = markdownViewModel.recoverableWork
     val isRecoveryInitialized = markdownViewModel.isRecoveryInitialized
     val isRecoveryTransitioning = markdownViewModel.isRecoveryTransitioning
@@ -170,13 +157,8 @@ fun MoraApp(
         mutableStateOf<SaveDestinationPurpose?>(null)
     }
     var recoveryCopyId by rememberSaveable { mutableStateOf<String?>(null) }
-    var failedRecoveryCopyId by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingSaveFailure by rememberSaveable { mutableStateOf<DocumentFailure?>(null) }
-    var pendingFailureSessionId by rememberSaveable { mutableLongStateOf(Long.MIN_VALUE) }
-    var pendingFailureRevision by rememberSaveable { mutableLongStateOf(Long.MIN_VALUE) }
-    var postSaveAction by rememberSaveable { mutableStateOf(PostSaveAction.NONE) }
-    var postSaveSessionId by rememberSaveable { mutableLongStateOf(Long.MIN_VALUE) }
-    var postSaveRevision by rememberSaveable { mutableLongStateOf(Long.MIN_VALUE) }
+    var pendingRecoveryDiscardId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showConflictVersionChoice by rememberSaveable { mutableStateOf(false) }
     var overlayStateSessionId by rememberSaveable { mutableLongStateOf(state.sessionId) }
     val saveAsPending = saveDestinationPurpose != null &&
         saveAsRequestSessionId == state.sessionId
@@ -294,48 +276,6 @@ fun MoraApp(
         return accepted
     }
 
-    fun clearPostSaveAction() {
-        postSaveAction = PostSaveAction.NONE
-        postSaveSessionId = Long.MIN_VALUE
-        postSaveRevision = Long.MIN_VALUE
-    }
-
-    fun completePostSaveIfCurrent(result: DocumentSaveResult) {
-        val current = markdownViewModel.uiState
-        if (postSaveAction == PostSaveAction.NONE || !canCompletePostSaveAction(
-                requestedSessionId = postSaveSessionId,
-                requestedContentRevision = postSaveRevision,
-                currentSessionId = current.sessionId,
-                currentContentRevision = current.contentRevision,
-                currentIsDirty = current.isDirty,
-                savedOriginal = result == DocumentSaveResult.Saved,
-            )
-        ) {
-            if (postSaveAction != PostSaveAction.NONE) clearPostSaveAction()
-            return
-        }
-        val action = postSaveAction
-        clearPostSaveAction()
-        when (action) {
-            PostSaveAction.NONE -> Unit
-            PostSaveAction.CLOSE -> {
-                readerScrollY = 0
-                markdownViewModel.closeDocument(
-                    context = context,
-                    discardChanges = result == DocumentSaveResult.Copied,
-                )
-            }
-
-            PostSaveAction.OPEN_INCOMING -> {
-                if (markdownViewModel.pendingIncomingRequest == null) return
-                markdownViewModel.closeDocument(
-                    context = context,
-                    discardChanges = result == DocumentSaveResult.Copied,
-                )
-            }
-        }
-    }
-
     fun failureMessage(failure: DocumentFailure): String = when (failure) {
         DocumentFailure.SAVE_AS_REQUIRED -> saveAsRequiredMessage
         DocumentFailure.FILE_TOO_LARGE -> documentTooLargeMessage
@@ -348,32 +288,26 @@ fun MoraApp(
         -> saveFailedMessage
     }
 
-    fun handleSaveResult(result: DocumentSaveResult) {
-        when (result) {
-            DocumentSaveResult.Saved -> {
-                pendingSaveFailure = null
-                scope.launch { snackbarHostState.showSnackbar(savedMessage) }
-                completePostSaveIfCurrent(result)
-            }
-
-            DocumentSaveResult.Copied -> {
-                pendingSaveFailure = null
-                scope.launch { snackbarHostState.showSnackbar(copiedMessage) }
-                completePostSaveIfCurrent(result)
-            }
-
-            DocumentSaveResult.Conflict -> pendingSaveFailure = null
-            is DocumentSaveResult.Failed -> {
-                val current = markdownViewModel.uiState
-                pendingSaveFailure = result.failure
-                pendingFailureSessionId = current.sessionId
-                pendingFailureRevision = current.contentRevision
-            }
-        }
-    }
-
     LaunchedEffect(Unit) {
         markdownViewModel.initialize(context)
+    }
+
+    LaunchedEffect(pendingSaveResult?.eventId) {
+        val event = pendingSaveResult ?: return@LaunchedEffect
+        when (event.result) {
+            DocumentSaveResult.Saved -> {
+                scope.launch { snackbarHostState.showSnackbar(savedMessage) }
+                markdownViewModel.consumePendingSaveResult(event.eventId)
+            }
+            DocumentSaveResult.Copied -> {
+                scope.launch { snackbarHostState.showSnackbar(copiedMessage) }
+                markdownViewModel.consumePendingSaveResult(event.eventId)
+            }
+            DocumentSaveResult.Conflict -> {
+                markdownViewModel.consumePendingSaveResult(event.eventId)
+            }
+            is DocumentSaveResult.Failed -> return@LaunchedEffect
+        }
     }
 
     LaunchedEffect(incomingRequest?.id) {
@@ -438,15 +372,23 @@ fun MoraApp(
         }
     }
 
+    LaunchedEffect(recoverableWork?.recoveryId) {
+        if (pendingRecoveryDiscardId != recoverableWork?.recoveryId) {
+            pendingRecoveryDiscardId = null
+        }
+    }
+
+    LaunchedEffect(pendingConflict) {
+        if (pendingConflict == null) showConflictVersionChoice = false
+    }
+
     LaunchedEffect(state.sessionId) {
         if (overlayStateSessionId == state.sessionId) return@LaunchedEffect
         overlayStateSessionId = state.sessionId
         resetPredictiveBackImmediately()
-        pendingSaveFailure = null
         saveDestinationPurpose = null
         saveAsRequestSessionId = null
         recoveryCopyId = null
-        clearPostSaveAction()
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -483,8 +425,6 @@ fun MoraApp(
         markdownViewModel.consumeError()
     }
 
-    val notifySave: (DocumentSaveResult) -> Unit = ::handleSaveResult
-
     val createDocument = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/markdown"),
     ) { uri ->
@@ -497,21 +437,14 @@ fun MoraApp(
         saveDestinationPurpose = null
         recoveryCopyId = null
         if (uri == null || purpose == null) {
-            clearPostSaveAction()
+            markdownViewModel.clearPostSaveAction()
             return@rememberLauncherForActivityResult
         }
         if (purpose == SaveDestinationPurpose.RECOVERY_COPY) {
             val recovery = markdownViewModel.recoverableWork
                 ?.takeIf { it.recoveryId == requestedRecoveryId }
                 ?: return@rememberLauncherForActivityResult
-            markdownViewModel.saveRecoveryCopy(context, uri, recovery) { result ->
-                failedRecoveryCopyId = if (result is DocumentSaveResult.Failed) {
-                    recovery.recoveryId
-                } else {
-                    null
-                }
-                notifySave(result)
-            }
+            markdownViewModel.saveRecoveryCopy(context, uri, recovery)
             return@rememberLauncherForActivityResult
         }
         val current = markdownViewModel.uiState
@@ -519,15 +452,15 @@ fun MoraApp(
             !isSaveAsResultCurrent(requestSessionId, current.sessionId) ||
             requestRevision != current.contentRevision
         ) {
-            clearPostSaveAction()
+            markdownViewModel.clearPostSaveAction()
             return@rememberLauncherForActivityResult
         }
         when (purpose) {
             SaveDestinationPurpose.SAVE_DOCUMENT ->
-                markdownViewModel.saveAs(context, uri, notifySave)
+                markdownViewModel.saveAs(context, uri)
 
             SaveDestinationPurpose.SAVE_COPY ->
-                markdownViewModel.saveCopy(context, uri, notifySave)
+                markdownViewModel.saveCopy(context, uri)
 
             SaveDestinationPurpose.RECOVERY_COPY -> Unit
         }
@@ -559,13 +492,6 @@ fun MoraApp(
         )
     }
 
-    fun beginPostSave(action: PostSaveAction) {
-        val current = markdownViewModel.uiState
-        postSaveAction = action
-        postSaveSessionId = current.sessionId
-        postSaveRevision = current.contentRevision
-    }
-
     fun saveCurrentDocument() {
         val current = markdownViewModel.uiState
         if (current.isSaving || saveDestinationPurpose != null) return
@@ -575,7 +501,7 @@ fun MoraApp(
         ) {
             launchSaveDestination(SaveDestinationPurpose.SAVE_DOCUMENT)
         } else {
-            markdownViewModel.save(context, notifySave)
+            markdownViewModel.save(context)
         }
     }
 
@@ -663,7 +589,7 @@ fun MoraApp(
                 )
             },
             onDiscardRecovery = { recovery ->
-                markdownViewModel.discardRecovery(context, recovery)
+                pendingRecoveryDiscardId = recovery.recoveryId
             },
             onOpenRecent = { document ->
                 openDocument(document.uri)
@@ -765,7 +691,7 @@ fun MoraApp(
                         isRecoveryTransitioning ||
                         pendingIncomingRequest != null ||
                         pendingConflict != null ||
-                        pendingSaveFailure != null,
+                        pendingSaveResult?.result is DocumentSaveResult.Failed,
                     predictiveBackVisualActive = predictiveBackVisualActive,
                     onPredictiveBackProgress = { gestureKey, progress, swipeEdge ->
                         if (markdownViewModel.uiState.sessionId == gestureKey) {
@@ -869,7 +795,9 @@ fun MoraApp(
                     TextButton(
                         onClick = {
                             showCloseDialog = false
-                            beginPostSave(PostSaveAction.CLOSE)
+                            markdownViewModel.beginPostSaveAction(
+                                DocumentPostSaveAction.Close,
+                            )
                             saveCurrentDocument()
                         },
                     ) { Text(stringResource(R.string.save_document)) }
@@ -897,7 +825,7 @@ fun MoraApp(
 
     pendingIncomingRequest
         ?.takeIf {
-            postSaveAction != PostSaveAction.OPEN_INCOMING &&
+            postSaveAction !is DocumentPostSaveAction.OpenIncoming &&
                 isRecoveryInitialized &&
                 !isRecoveryTransitioning &&
                 !isRecoverySaving &&
@@ -907,14 +835,14 @@ fun MoraApp(
                 !state.isSaving &&
                 !saveAsPending &&
                 pendingConflict == null &&
-                pendingSaveFailure == null
+                pendingSaveResult?.result !is DocumentSaveResult.Failed
         }
         ?.let { request ->
         AlertDialog(
             onDismissRequest = {
                 markdownViewModel.clearPendingIncomingRequest(request.id)
                 onIncomingRequestConsumed(request.id)
-                clearPostSaveAction()
+                markdownViewModel.clearPostSaveAction()
             },
             title = { Text(stringResource(R.string.open_new_document_title)) },
             text = { Text(stringResource(R.string.open_new_document_body)) },
@@ -922,7 +850,9 @@ fun MoraApp(
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(
                         onClick = {
-                            beginPostSave(PostSaveAction.OPEN_INCOMING)
+                            markdownViewModel.beginPostSaveAction(
+                                DocumentPostSaveAction.OpenIncoming(request.id),
+                            )
                             saveCurrentDocument()
                         },
                     ) { Text(stringResource(R.string.save_document)) }
@@ -941,84 +871,140 @@ fun MoraApp(
                     onClick = {
                         markdownViewModel.clearPendingIncomingRequest(request.id)
                         onIncomingRequestConsumed(request.id)
-                        clearPostSaveAction()
+                        markdownViewModel.clearPostSaveAction()
                     },
                 ) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
 
-    pendingConflict?.let {
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text(stringResource(R.string.external_change_title)) },
-            text = { Text(stringResource(R.string.external_change_body)) },
-            confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    recoverableWork
+        ?.takeIf { it.recoveryId == pendingRecoveryDiscardId }
+        ?.let { recovery ->
+            AlertDialog(
+                onDismissRequest = { pendingRecoveryDiscardId = null },
+                title = {
+                    Text(
+                        stringResource(
+                            if (recovery.isOriginalBackup) {
+                                R.string.delete_backup_confirmation_title
+                            } else {
+                                R.string.discard_recovery_title
+                            },
+                        ),
+                    )
+                },
+                text = {
+                    Text(
+                        stringResource(
+                            if (recovery.isOriginalBackup) {
+                                R.string.delete_backup_confirmation_body
+                            } else {
+                                R.string.discard_recovery_body
+                            },
+                        ),
+                    )
+                },
+                confirmButton = {
                     TextButton(
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
                         onClick = {
-                            markdownViewModel.overwriteConflict(context, notifySave)
+                            pendingRecoveryDiscardId = null
+                            markdownViewModel.discardRecovery(context, recovery)
+                        },
+                    ) {
+                        Text(
+                            stringResource(
+                                if (recovery.isOriginalBackup) {
+                                    R.string.delete_backup
+                                } else {
+                                    R.string.discard_recovery
+                                },
+                            ),
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingRecoveryDiscardId = null }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                },
+            )
+        }
+
+    pendingConflict?.let {
+        if (showConflictVersionChoice) {
+            AlertDialog(
+                onDismissRequest = { showConflictVersionChoice = false },
+                title = { Text(stringResource(R.string.choose_version_title)) },
+                text = { Text(stringResource(R.string.choose_version_body)) },
+                confirmButton = {
+                    TextButton(
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                        onClick = {
+                            showConflictVersionChoice = false
+                            markdownViewModel.overwriteConflict(context)
                         },
                     ) { Text(stringResource(R.string.overwrite_document)) }
+                },
+                dismissButton = {
+                    TextButton(
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                        onClick = {
+                            showConflictVersionChoice = false
+                            markdownViewModel.clearPostSaveAction()
+                            markdownViewModel.reloadConflict(context)
+                        },
+                    ) { Text(stringResource(R.string.reload_document)) }
+                },
+            )
+        } else {
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text(stringResource(R.string.external_change_title)) },
+                text = { Text(stringResource(R.string.external_change_body)) },
+                confirmButton = {
                     TextButton(
                         onClick = {
                             markdownViewModel.clearConflict()
                             launchSaveDestination(SaveDestinationPurpose.SAVE_COPY)
                         },
                     ) { Text(stringResource(R.string.save_copy)) }
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        clearPostSaveAction()
-                        markdownViewModel.reloadConflict(context)
-                    },
-                ) { Text(stringResource(R.string.reload_document)) }
-            },
-        )
+                },
+                dismissButton = {
+                    TextButton(onClick = { showConflictVersionChoice = true }) {
+                        Text(stringResource(R.string.choose_version))
+                    }
+                },
+            )
+        }
     }
 
-    pendingSaveFailure?.let { failure ->
-        AlertDialog(
-            onDismissRequest = {
-                pendingSaveFailure = null
-                failedRecoveryCopyId = null
-                clearPostSaveAction()
-            },
-            title = { Text(stringResource(R.string.save_failed_title)) },
-            text = { Text(failureMessage(failure)) },
-            confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    pendingSaveResult
+        ?.takeIf { it.result is DocumentSaveResult.Failed }
+        ?.let { event ->
+            val failure = (event.result as DocumentSaveResult.Failed).failure
+            val recovery = recoverableWork?.takeIf { work ->
+                work.recoveryId == event.recoveryId
+            }
+            fun cancelFailure() {
+                markdownViewModel.consumePendingSaveResult(event.eventId)
+                markdownViewModel.clearPostSaveAction()
+            }
+            AlertDialog(
+                onDismissRequest = ::cancelFailure,
+                title = { Text(stringResource(R.string.save_failed_title)) },
+                text = { Text(failureMessage(failure)) },
+                confirmButton = {
                     TextButton(
                         onClick = {
-                            pendingSaveFailure = null
-                            val recovery = recoverableWork?.takeIf {
-                                it.recoveryId == failedRecoveryCopyId
-                            }
-                            if (recovery != null) {
-                                launchSaveDestination(
-                                    SaveDestinationPurpose.RECOVERY_COPY,
-                                    recovery,
-                                )
-                            } else if (
-                                markdownViewModel.uiState.sessionId ==
-                                pendingFailureSessionId &&
-                                markdownViewModel.uiState.contentRevision ==
-                                pendingFailureRevision
-                            ) {
-                                saveCurrentDocument()
-                            } else {
-                                clearPostSaveAction()
-                            }
-                        },
-                    ) { Text(stringResource(R.string.retry)) }
-                    TextButton(
-                        onClick = {
-                            pendingSaveFailure = null
-                            val recovery = recoverableWork?.takeIf {
-                                it.recoveryId == failedRecoveryCopyId
-                            }
+                            markdownViewModel.consumePendingSaveResult(event.eventId)
                             if (recovery != null) {
                                 launchSaveDestination(
                                     SaveDestinationPurpose.RECOVERY_COPY,
@@ -1028,20 +1014,42 @@ fun MoraApp(
                                 launchSaveDestination(SaveDestinationPurpose.SAVE_COPY)
                             }
                         },
-                    ) { Text(stringResource(R.string.save_copy)) }
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        pendingSaveFailure = null
-                        failedRecoveryCopyId = null
-                        clearPostSaveAction()
-                    },
-                ) { Text(stringResource(R.string.cancel)) }
-            },
-        )
-    }
+                    ) {
+                        Text(
+                            stringResource(
+                                if (recovery != null) {
+                                    R.string.try_another_location
+                                } else {
+                                    R.string.save_copy
+                                },
+                            ),
+                        )
+                    }
+                },
+                dismissButton = {
+                    if (recovery != null) {
+                        TextButton(onClick = ::cancelFailure) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    } else {
+                        TextButton(
+                            onClick = {
+                                markdownViewModel.consumePendingSaveResult(event.eventId)
+                                val current = markdownViewModel.uiState
+                                if (
+                                    current.sessionId == event.sessionId &&
+                                    current.contentRevision == event.contentRevision
+                                ) {
+                                    saveCurrentDocument()
+                                } else {
+                                    markdownViewModel.clearPostSaveAction()
+                                }
+                            },
+                        ) { Text(stringResource(R.string.retry)) }
+                    }
+                },
+            )
+        }
 }
 
 private fun normalizedMarkdownName(name: String, fallbackName: String): String {

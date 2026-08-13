@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -174,49 +175,48 @@ internal fun HomeScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                             )
-                            Row(
+                            Spacer(Modifier.height(10.dp))
+                            FilledTonalButton(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End,
+                                enabled = interactive,
+                                onClick = { if (interactive) onRecover(recovery) },
                             ) {
-                                TextButton(
-                                    modifier = Modifier.weight(1f),
-                                    enabled = interactive,
-                                    onClick = {
-                                        if (interactive) onDiscardRecovery(recovery)
-                                    },
-                                ) {
-                                    Text(
-                                        stringResource(
-                                            if (recovery.isOriginalBackup) {
-                                                R.string.delete_backup
-                                            } else {
-                                                R.string.discard_changes
-                                            },
-                                        ),
-                                    )
-                                }
-                                TextButton(
-                                    modifier = Modifier.weight(1f),
-                                    enabled = interactive,
-                                    onClick = {
-                                        if (interactive) onSaveRecoveryCopy(recovery)
-                                    },
-                                ) { Text(stringResource(R.string.save_copy)) }
-                                TextButton(
-                                    modifier = Modifier.weight(1f),
-                                    enabled = interactive,
-                                    onClick = { if (interactive) onRecover(recovery) },
-                                ) {
-                                    Text(
-                                        stringResource(
-                                            if (recovery.isOriginalBackup) {
-                                                R.string.recover_original
-                                            } else {
-                                                R.string.recover_document
-                                            },
-                                        ),
-                                    )
-                                }
+                                Text(
+                                    stringResource(
+                                        if (recovery.isOriginalBackup) {
+                                            R.string.recover_original
+                                        } else {
+                                            R.string.recover_document
+                                        },
+                                    ),
+                                )
+                            }
+                            TextButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = interactive,
+                                onClick = {
+                                    if (interactive) onSaveRecoveryCopy(recovery)
+                                },
+                            ) { Text(stringResource(R.string.save_copy)) }
+                            TextButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = interactive,
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error,
+                                ),
+                                onClick = {
+                                    if (interactive) onDiscardRecovery(recovery)
+                                },
+                            ) {
+                                Text(
+                                    stringResource(
+                                        if (recovery.isOriginalBackup) {
+                                            R.string.delete_backup
+                                        } else {
+                                            R.string.discard_changes
+                                        },
+                                    ),
+                                )
                             }
                         }
                     }

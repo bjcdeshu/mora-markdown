@@ -357,6 +357,37 @@ class MoraAppSaveFlowRecreationTest {
     }
 
     @Test
+    fun homeRecoveryDiscardRequiresExplicitConfirmation() {
+        val content = "# Recovery confirmation\n\nKeep until confirmed.\n"
+        onMain {
+            assertNull(viewModel.newDraft("recovery-confirmation.md", content))
+            viewModel.flushRecovery()
+        }
+        composeRule.waitUntil(OPERATION_TIMEOUT_MILLIS) {
+            DocumentRecoveryRepository(targetContext).loadDirty()?.content == content
+        }
+        onMain { assertTrue(viewModel.closeDocument(targetContext)) }
+        composeRule.waitUntil(OPERATION_TIMEOUT_MILLIS) {
+            !viewModel.isRecoveryTransitioning && viewModel.recoverableWork?.content == content
+        }
+
+        composeRule.onNodeWithText(label(R.string.discard_changes)).performClick()
+        waitForText(label(R.string.discard_recovery_title))
+        assertNotNull(onMain { viewModel.recoverableWork })
+        composeRule.onNodeWithText(label(R.string.cancel)).performClick()
+        waitForTextToDisappear(label(R.string.discard_recovery_title))
+        assertNotNull(onMain { viewModel.recoverableWork })
+
+        composeRule.onNodeWithText(label(R.string.discard_changes)).performClick()
+        waitForText(label(R.string.discard_recovery_title))
+        composeRule.onNodeWithText(label(R.string.discard_recovery)).performClick()
+        composeRule.waitUntil(OPERATION_TIMEOUT_MILLIS) {
+            viewModel.recoverableWork == null && !viewModel.isRecoveryTransitioning
+        }
+        assertNull(DocumentRecoveryRepository(targetContext).loadDirty())
+    }
+
+    @Test
     fun incomingCancelKeepsDirtyEditorAndStaleCancellationCannotDropReplacement() {
         val localContent = "# Local draft\n\nMust not be replaced.\n"
         onMain { assertNull(viewModel.newDraft("local.md", localContent)) }
@@ -366,6 +397,7 @@ class MoraAppSaveFlowRecreationTest {
         }
         val firstId = requireNotNull(onMain { viewModel.pendingIncomingRequest }).id
 
+        composeRule.activityRule.scenario.recreate()
         sendSharedText("replacement incoming")
         composeRule.waitUntil(OPERATION_TIMEOUT_MILLIS) {
             viewModel.pendingIncomingRequest?.sharedText == "replacement incoming"
@@ -392,16 +424,18 @@ class MoraAppSaveFlowRecreationTest {
     }
 
     @Test
-    fun pendingFailureAndPostSaveCloseSurviveActivityRecreation() {
+    fun saveFailureAndPostSaveCloseSurviveRecreationDuringProviderRead() {
         val source = openEditedWritableSource(
             documentId = "recreated_retry_source",
             original = "before retry",
             edited = "after recreated retry",
             failWrites = true,
+            slowReadDelayMillis = RECREATION_READ_DELAY_MILLIS,
         )
 
-        beginSaveAndCloseUntilFailure()
+        beginSaveAndCloseDuringProviderRead()
         composeRule.activityRule.scenario.recreate()
+        assertTrue(onMain { viewModel.uiState.isSaving })
         waitForText(label(R.string.save_failed_title))
         composeRule.onNodeWithText(label(R.string.retry)).assertIsDisplayed()
 
@@ -422,16 +456,18 @@ class MoraAppSaveFlowRecreationTest {
     }
 
     @Test
-    fun cancellingRecreatedFailureClearsPostSaveCloseContinuation() {
+    fun cancellingFailureAfterMidSaveRecreationClearsPostSaveCloseContinuation() {
         val source = openEditedWritableSource(
             documentId = "recreated_cancel_source",
             original = "before cancel",
             edited = "saved after cancel",
             failWrites = true,
+            slowReadDelayMillis = RECREATION_READ_DELAY_MILLIS,
         )
 
-        beginSaveAndCloseUntilFailure()
+        beginSaveAndCloseDuringProviderRead()
         composeRule.activityRule.scenario.recreate()
+        assertTrue(onMain { viewModel.uiState.isSaving })
         waitForText(label(R.string.save_failed_title))
         composeRule.onNodeWithText(label(R.string.cancel)).performClick()
         waitForTextToDisappear(label(R.string.save_failed_title))
@@ -455,16 +491,85 @@ class MoraAppSaveFlowRecreationTest {
         assertEquals("saved after cancel", readDocument(source).content)
     }
 
+    @Test
+    fun successfulSaveAndCloseCompleteOnceAfterMidSaveRecreation() {
+        val source = openEditedWritableSource(
+            documentId = "recreated_success_source",
+            original = "before successful save",
+            edited = "saved across recreation",
+            failWrites = false,
+            slowReadDelayMillis = RECREATION_READ_DELAY_MILLIS,
+        )
+
+        beginSaveAndCloseDuringProviderRead()
+        composeRule.activityRule.scenario.recreate()
+        assertTrue(onMain { viewModel.uiState.isSaving })
+        composeRule.waitUntil(OPERATION_TIMEOUT_MILLIS) {
+            !viewModel.uiState.hasDocument &&
+                !viewModel.uiState.isSaving &&
+                !viewModel.isRecoveryTransitioning
+        }
+        waitForText(label(R.string.document_saved))
+
+        assertEquals("saved across recreation", readDocument(source).content)
+        composeRule.waitUntil(OPERATION_TIMEOUT_MILLIS) {
+            viewModel.pendingSaveResult == null
+        }
+    }
+
+    @Test
+    fun conflictRequiresASecondChoiceBeforeReloadOrOverwrite() {
+        openEditedWritableSource(
+            documentId = "two_step_conflict_source",
+            original = "original version",
+            edited = "local edits",
+            failWrites = false,
+        )
+        provider.configure(
+            documentId = "two_step_conflict_source",
+            bytes = "external version".toByteArray(),
+            grantFlags = null,
+        )
+
+        composeRule.onNodeWithContentDescription(label(R.string.save_document)).performClick()
+        waitForText(label(R.string.external_change_title))
+        composeRule.onNodeWithText(label(R.string.save_copy)).assertIsDisplayed()
+        composeRule.onNodeWithText(label(R.string.choose_version)).assertIsDisplayed()
+        assertTrue(
+            composeRule.onAllNodesWithText(label(R.string.reload_document))
+                .fetchSemanticsNodes().isEmpty(),
+        )
+        assertTrue(
+            composeRule.onAllNodesWithText(label(R.string.overwrite_document))
+                .fetchSemanticsNodes().isEmpty(),
+        )
+
+        composeRule.onNodeWithText(label(R.string.choose_version)).performClick()
+        waitForText(label(R.string.choose_version_title))
+        composeRule.onNodeWithText(label(R.string.reload_document)).assertIsDisplayed()
+        composeRule.onNodeWithText(label(R.string.overwrite_document)).assertIsDisplayed()
+        composeRule.onNodeWithText(label(R.string.reload_document)).performClick()
+        composeRule.waitUntil(OPERATION_TIMEOUT_MILLIS) {
+            viewModel.pendingConflict == null &&
+                !viewModel.uiState.isLoading &&
+                !viewModel.isRecoveryTransitioning
+        }
+        assertEquals("external version", onMain { viewModel.uiState.content })
+        assertFalse(onMain { viewModel.uiState.isDirty })
+    }
+
     private fun openEditedWritableSource(
         documentId: String,
         original: String,
         edited: String,
         failWrites: Boolean,
+        slowReadDelayMillis: Long = 0L,
     ): Uri {
         val source = provider.configure(
             documentId = documentId,
             bytes = original.toByteArray(),
             failWrites = failWrites,
+            slowReadDelayMillis = slowReadDelayMillis,
             grantFlags = READ_WRITE_GRANTS,
         )
         onMain {
@@ -482,12 +587,12 @@ class MoraAppSaveFlowRecreationTest {
         return source
     }
 
-    private fun beginSaveAndCloseUntilFailure() {
+    private fun beginSaveAndCloseDuringProviderRead() {
         clickBackAndWaitForCloseDialog()
         composeRule.onNodeWithText(label(R.string.save_document)).performClick()
-        waitForText(label(R.string.save_failed_title))
-        assertTrue(onMain { viewModel.uiState.hasDocument })
-        assertTrue(onMain { viewModel.uiState.isDirty })
+        composeRule.waitUntil(OPERATION_TIMEOUT_MILLIS) {
+            viewModel.uiState.isSaving
+        }
     }
 
     private fun clickBackAndWaitForCloseDialog() {
@@ -554,6 +659,8 @@ private class ProviderHarness(
         failWrites: Boolean = false,
         failVerificationReadAfterWrite: Boolean = false,
         partialWriteFailureAfterBytes: Int? = null,
+        slowReadDelayMillis: Long = 0L,
+        slowReadChunkBytes: Int = 8 * 1024,
         grantFlags: Int?,
     ): Uri {
         assertNotNull(
@@ -567,6 +674,14 @@ private class ProviderHarness(
                     putInt(TestDocumentsProvider.KEY_DOCUMENT_FLAGS, documentFlags)
                     putBoolean(TestDocumentsProvider.KEY_FAIL_READS, failReads)
                     putBoolean(TestDocumentsProvider.KEY_FAIL_WRITES, failWrites)
+                    putLong(
+                        TestDocumentsProvider.KEY_SLOW_READ_DELAY_MILLIS,
+                        slowReadDelayMillis,
+                    )
+                    putInt(
+                        TestDocumentsProvider.KEY_SLOW_READ_CHUNK_BYTES,
+                        slowReadChunkBytes,
+                    )
                     putBoolean(
                         TestDocumentsProvider.KEY_FAIL_VERIFICATION_READ_AFTER_WRITE,
                         failVerificationReadAfterWrite,
@@ -625,5 +740,6 @@ private fun clearPersistentTestState(context: Context) {
 
 private const val OPERATION_TIMEOUT_SECONDS = 15L
 private const val OPERATION_TIMEOUT_MILLIS = OPERATION_TIMEOUT_SECONDS * 1_000L
+private const val RECREATION_READ_DELAY_MILLIS = 3_000L
 private const val READ_WRITE_GRANTS = Intent.FLAG_GRANT_READ_URI_PERMISSION or
     Intent.FLAG_GRANT_WRITE_URI_PERMISSION

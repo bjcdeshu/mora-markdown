@@ -16,6 +16,7 @@ import de.unbow.mora.data.sanitizeRecoveryDocumentName
 import de.unbow.mora.platform.LauncherIconManager
 import de.unbow.mora.ui.MoraApp
 import de.unbow.mora.ui.theme.MoraTheme
+import java.util.concurrent.atomic.AtomicLong
 
 data class IncomingDocumentRequest(
     val id: Long,
@@ -27,7 +28,6 @@ data class IncomingDocumentRequest(
 
 class MainActivity : ComponentActivity() {
 
-    private var requestCounter = 0L
     private var incomingRequest by mutableStateOf<IncomingDocumentRequest?>(null)
     private var appSettings by mutableStateOf(AppSettings())
 
@@ -98,9 +98,8 @@ class MainActivity : ComponentActivity() {
         if (uri == null && sharedText == null) return null
         if (uri != null && uri.scheme != "content" && uri.scheme != "file") return null
 
-        requestCounter += 1
         return IncomingDocumentRequest(
-            id = requestCounter,
+            id = INCOMING_REQUEST_IDS.incrementAndGet(),
             uri = uri,
             sharedText = sharedText,
             suggestedName = sanitizeRecoveryDocumentName(
@@ -119,5 +118,9 @@ class MainActivity : ComponentActivity() {
         } else {
             getParcelableExtra(Intent.EXTRA_STREAM)
         }
+    }
+
+    private companion object {
+        val INCOMING_REQUEST_IDS = AtomicLong()
     }
 }

@@ -142,13 +142,22 @@
     <string name="original_backup_available_body">A previous write may have left the source incomplete. Recover or export this known-good original before deleting it.</string>
     <string name="recover_original">Recover original</string>
     <string name="delete_backup">Delete backup</string>
+    <string name="discard_recovery_title">Discard this recovery copy?</string>
+    <string name="discard_recovery_body">This is the only copy of these unsaved changes. This action cannot be undone.</string>
+    <string name="discard_recovery">Discard recovery</string>
+    <string name="delete_backup_confirmation_title">Delete this protected backup?</string>
+    <string name="delete_backup_confirmation_body">Mora will no longer be able to restore this known-good original. This action cannot be undone.</string>
     <string name="wait_for_save">Wait for the current save to finish.</string>
     <string name="external_change_title">This file changed elsewhere</string>
-    <string name="external_change_body">Reload the external version, overwrite only after a second check, or save your edits as a copy.</string>
+    <string name="external_change_body">Saving a copy keeps both versions. To replace either version, review the destructive choices first.</string>
+    <string name="choose_version">Choose version…</string>
+    <string name="choose_version_title">Choose which version to keep?</string>
+    <string name="choose_version_body">Reload discards your edits. Overwrite replaces the version changed elsewhere.</string>
     <string name="overwrite_document">Overwrite</string>
     <string name="reload_document">Reload</string>
     <string name="save_copy">Save copy</string>
     <string name="save_failed_title">Save didn’t complete</string>
     <string name="retry">Retry</string>
+    <string name="try_another_location">Try another location</string>
     <string name="cancel">Cancel</string>
 </resources>

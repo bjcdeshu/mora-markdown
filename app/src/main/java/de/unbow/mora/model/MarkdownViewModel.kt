@@ -55,6 +55,29 @@ data class DocumentConflict(
     val observedVersion: DocumentVersion,
 )
 
+sealed interface DocumentPostSaveAction {
+    data object None : DocumentPostSaveAction
+    data object Close : DocumentPostSaveAction
+    data class OpenIncoming(val requestId: Long) : DocumentPostSaveAction
+}
+
+data class PendingDocumentSaveResult(
+    val eventId: Long,
+    val result: DocumentSaveResult,
+    val sessionId: Long,
+    val contentRevision: Long,
+    val recoveryId: String? = null,
+)
+
+internal fun consumePendingSaveResult(
+    pending: List<PendingDocumentSaveResult>,
+    eventId: Long,
+): List<PendingDocumentSaveResult> = if (pending.firstOrNull()?.eventId == eventId) {
+    pending.drop(1)
+} else {
+    pending
+}
+
 internal data class ResolvedDocumentName(
     val storedName: String,
     val usesLocalizedFallback: Boolean,
@@ -234,6 +257,17 @@ internal fun shouldRemainDirtyAfterSave(
     return currentContent != savedSnapshot.content
 }
 
+internal fun canCompletePostSaveAction(
+    requestedSessionId: Long,
+    requestedContentRevision: Long,
+    currentSessionId: Long,
+    currentContentRevision: Long,
+    currentIsDirty: Boolean,
+    savedOriginal: Boolean,
+): Boolean = requestedSessionId == currentSessionId &&
+    requestedContentRevision == currentContentRevision &&
+    (!savedOriginal || !currentIsDirty)
+
 internal fun stateAfterSaveFailure(state: DocumentUiState): DocumentUiState =
     state.copy(isSaving = false)
 
@@ -313,6 +347,15 @@ class MarkdownViewModel : ViewModel() {
     var pendingConflict by mutableStateOf<DocumentConflict?>(null)
         private set
 
+    var pendingSaveResults by mutableStateOf<List<PendingDocumentSaveResult>>(emptyList())
+        private set
+
+    val pendingSaveResult: PendingDocumentSaveResult?
+        get() = pendingSaveResults.firstOrNull()
+
+    var postSaveAction by mutableStateOf<DocumentPostSaveAction>(DocumentPostSaveAction.None)
+        private set
+
     var recoverableWork by mutableStateOf<DirtyDocumentRecovery?>(null)
         private set
 
@@ -331,6 +374,9 @@ class MarkdownViewModel : ViewModel() {
     private var contentRevisionCounter: Long = 0L
     private var recoveryGenerationCounter: Long = 0L
     private var sessionCounter: Long = 0L
+    private var saveResultEventCounter: Long = 0L
+    private var postSaveSessionId: Long = Long.MIN_VALUE
+    private var postSaveContentRevision: Long = Long.MIN_VALUE
     private val saveCoordinator = DocumentSaveCoordinator()
     private var pendingConflictSnapshot: DocumentSaveSnapshot? = null
     private var initialized = false
@@ -389,6 +435,64 @@ class MarkdownViewModel : ViewModel() {
         pendingIncomingRequest = null
     }
 
+    fun beginPostSaveAction(action: DocumentPostSaveAction) {
+        val current = uiState
+        postSaveAction = action
+        postSaveSessionId = current.sessionId
+        postSaveContentRevision = current.contentRevision
+    }
+
+    fun clearPostSaveAction() {
+        postSaveAction = DocumentPostSaveAction.None
+        postSaveSessionId = Long.MIN_VALUE
+        postSaveContentRevision = Long.MIN_VALUE
+    }
+
+    fun consumePendingSaveResult(eventId: Long) {
+        pendingSaveResults = consumePendingSaveResult(pendingSaveResults, eventId)
+    }
+
+    fun completePostSaveAction(
+        context: Context,
+        result: DocumentSaveResult,
+    ): Boolean {
+        if (result != DocumentSaveResult.Saved && result != DocumentSaveResult.Copied) {
+            return false
+        }
+        val action = postSaveAction
+        if (action == DocumentPostSaveAction.None) return false
+        val current = uiState
+        val canComplete = canCompletePostSaveAction(
+            requestedSessionId = postSaveSessionId,
+            requestedContentRevision = postSaveContentRevision,
+            currentSessionId = current.sessionId,
+            currentContentRevision = current.contentRevision,
+            currentIsDirty = current.isDirty,
+            savedOriginal = result == DocumentSaveResult.Saved,
+        )
+        clearPostSaveAction()
+        if (!canComplete) return false
+
+        return when (action) {
+            DocumentPostSaveAction.None -> false
+            DocumentPostSaveAction.Close -> closeDocument(
+                context = context,
+                discardChanges = result == DocumentSaveResult.Copied,
+            )
+
+            is DocumentPostSaveAction.OpenIncoming -> {
+                if (pendingIncomingRequest?.id != action.requestId) {
+                    false
+                } else {
+                    closeDocument(
+                        context = context,
+                        discardChanges = result == DocumentSaveResult.Copied,
+                    )
+                }
+            }
+        }
+    }
+
     fun openDocument(
         context: Context,
         uri: Uri,
@@ -417,6 +521,7 @@ class MarkdownViewModel : ViewModel() {
         requiresSuccessfulSaveToClearDirty = false
         pendingConflict = null
         pendingConflictSnapshot = null
+        clearPostSaveAction()
         uiState = DocumentUiState(
             sessionId = requestSessionId,
             recoveryId = UUID.randomUUID().toString(),
@@ -517,6 +622,7 @@ class MarkdownViewModel : ViewModel() {
         requiresSuccessfulSaveToClearDirty = false
         pendingConflict = null
         pendingConflictSnapshot = null
+        clearPostSaveAction()
         uiState = DocumentUiState(
             sessionId = nextSessionId(),
             recoveryId = UUID.randomUUID().toString(),
@@ -598,6 +704,7 @@ class MarkdownViewModel : ViewModel() {
         recoverableWork = null
         pendingConflict = null
         pendingConflictSnapshot = null
+        clearPostSaveAction()
         contentRevisionCounter = maxOf(contentRevisionCounter, recovery.contentRevision)
         recoveryGenerationCounter = maxOf(
             recoveryGenerationCounter,
@@ -685,7 +792,7 @@ class MarkdownViewModel : ViewModel() {
         context: Context,
         uri: Uri,
         work: DirtyDocumentRecovery? = recoverableWork,
-        onResult: (DocumentSaveResult) -> Unit,
+        onResult: (DocumentSaveResult) -> Unit = NO_OP_SAVE_RESULT,
     ) {
         val recovery = work ?: return
         if (
@@ -698,7 +805,13 @@ class MarkdownViewModel : ViewModel() {
             return
         }
         if (targetsCurrentSource(recovery.sourceUri, uri.toString())) {
-            onResult(DocumentSaveResult.Failed(DocumentFailure.SAVE_AS_REQUIRED))
+            reportSaveResult(
+                result = DocumentSaveResult.Failed(DocumentFailure.SAVE_AS_REQUIRED),
+                sessionId = uiState.sessionId,
+                contentRevision = recovery.contentRevision,
+                recoveryId = recovery.recoveryId,
+                onResult = onResult,
+            )
             return
         }
         val clearThroughGeneration = nextRecoveryGeneration()
@@ -750,18 +863,36 @@ class MarkdownViewModel : ViewModel() {
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (_: Exception) {
-                            onResult(
-                                DocumentSaveResult.Failed(DocumentFailure.RECOVERY_FAILED),
+                            reportSaveResult(
+                                result = DocumentSaveResult.Failed(
+                                    DocumentFailure.RECOVERY_FAILED,
+                                ),
+                                sessionId = uiState.sessionId,
+                                contentRevision = recovery.contentRevision,
+                                recoveryId = recovery.recoveryId,
+                                onResult = onResult,
                             )
                             return@launch
                         }
                         if (recoverableWork?.recoveryId == recovery.recoveryId) {
                             recoverableWork = replacement
                         }
-                        onResult(DocumentSaveResult.Copied)
+                        reportSaveResult(
+                            result = DocumentSaveResult.Copied,
+                            sessionId = uiState.sessionId,
+                            contentRevision = recovery.contentRevision,
+                            recoveryId = recovery.recoveryId,
+                            onResult = onResult,
+                        )
                     }
 
-                    is SaveOutcome.Failure -> onResult(DocumentSaveResult.Failed(outcome.failure))
+                    is SaveOutcome.Failure -> reportSaveResult(
+                        result = DocumentSaveResult.Failed(outcome.failure),
+                        sessionId = uiState.sessionId,
+                        contentRevision = recovery.contentRevision,
+                        recoveryId = recovery.recoveryId,
+                        onResult = onResult,
+                    )
                     is SaveOutcome.Conflict -> Unit
                 }
             } finally {
@@ -770,15 +901,28 @@ class MarkdownViewModel : ViewModel() {
         }
     }
 
-    fun save(context: Context, onResult: (DocumentSaveResult) -> Unit) {
+    fun save(
+        context: Context,
+        onResult: (DocumentSaveResult) -> Unit = NO_OP_SAVE_RESULT,
+    ) {
         val stateToSave = uiState
         val uri = stateToSave.uri
         if (shouldUseSaveAs(hasUri = uri != null, canWrite = stateToSave.canWrite)) {
-            onResult(DocumentSaveResult.Failed(DocumentFailure.SAVE_AS_REQUIRED))
+            reportSaveResult(
+                result = DocumentSaveResult.Failed(DocumentFailure.SAVE_AS_REQUIRED),
+                sessionId = stateToSave.sessionId,
+                contentRevision = stateToSave.contentRevision,
+                onResult = onResult,
+            )
             return
         }
         if (stateToSave.baseVersion == null) {
-            onResult(DocumentSaveResult.Failed(DocumentFailure.SAVE_AS_REQUIRED))
+            reportSaveResult(
+                result = DocumentSaveResult.Failed(DocumentFailure.SAVE_AS_REQUIRED),
+                sessionId = stateToSave.sessionId,
+                contentRevision = stateToSave.contentRevision,
+                onResult = onResult,
+            )
             return
         }
         launchSave(
@@ -791,7 +935,11 @@ class MarkdownViewModel : ViewModel() {
         )
     }
 
-    fun saveAs(context: Context, uri: Uri, onResult: (DocumentSaveResult) -> Unit) {
+    fun saveAs(
+        context: Context,
+        uri: Uri,
+        onResult: (DocumentSaveResult) -> Unit = NO_OP_SAVE_RESULT,
+    ) {
         launchSave(
             context = context.applicationContext,
             uri = uri,
@@ -802,7 +950,11 @@ class MarkdownViewModel : ViewModel() {
         )
     }
 
-    fun saveCopy(context: Context, uri: Uri, onResult: (DocumentSaveResult) -> Unit) {
+    fun saveCopy(
+        context: Context,
+        uri: Uri,
+        onResult: (DocumentSaveResult) -> Unit = NO_OP_SAVE_RESULT,
+    ) {
         launchSave(
             context = context.applicationContext,
             uri = uri,
@@ -813,7 +965,10 @@ class MarkdownViewModel : ViewModel() {
         )
     }
 
-    fun overwriteConflict(context: Context, onResult: (DocumentSaveResult) -> Unit) {
+    fun overwriteConflict(
+        context: Context,
+        onResult: (DocumentSaveResult) -> Unit = NO_OP_SAVE_RESULT,
+    ) {
         val conflict = pendingConflict ?: return
         val snapshot = pendingConflictSnapshot ?: return
         val currentState = uiState
@@ -934,6 +1089,30 @@ class MarkdownViewModel : ViewModel() {
         )
     }
 
+    private fun reportSaveResult(
+        result: DocumentSaveResult,
+        sessionId: Long,
+        contentRevision: Long,
+        recoveryId: String? = null,
+        onResult: (DocumentSaveResult) -> Unit,
+    ) {
+        if (result == DocumentSaveResult.Saved || result == DocumentSaveResult.Copied) {
+            completePostSaveAction(requireContext(), result)
+        }
+        saveResultEventCounter += 1
+        val event = PendingDocumentSaveResult(
+            eventId = saveResultEventCounter,
+            result = result,
+            sessionId = sessionId,
+            contentRevision = contentRevision,
+            recoveryId = recoveryId,
+        )
+        if (onResult === NO_OP_SAVE_RESULT) {
+            pendingSaveResults = pendingSaveResults + event
+        }
+        onResult(result)
+    }
+
     private fun launchSave(
         context: Context,
         uri: Uri,
@@ -949,7 +1128,12 @@ class MarkdownViewModel : ViewModel() {
             !stateToSave.hasDocument ||
             uiState.sessionId != stateToSave.sessionId
         ) {
-            onResult(DocumentSaveResult.Failed(DocumentFailure.RECOVERY_FAILED))
+            reportSaveResult(
+                result = DocumentSaveResult.Failed(DocumentFailure.RECOVERY_FAILED),
+                sessionId = stateToSave.sessionId,
+                contentRevision = stateToSave.contentRevision,
+                onResult = onResult,
+            )
             return
         }
         val snapshot = saveCoordinator.tryBegin(
@@ -966,7 +1150,12 @@ class MarkdownViewModel : ViewModel() {
             recoveryGeneration = nextRecoveryGeneration(),
             wasDirty = stateToSave.isDirty,
         ) ?: run {
-            onResult(DocumentSaveResult.Failed(DocumentFailure.WRITE_FAILED))
+            reportSaveResult(
+                result = DocumentSaveResult.Failed(DocumentFailure.WRITE_FAILED),
+                sessionId = stateToSave.sessionId,
+                contentRevision = stateToSave.contentRevision,
+                onResult = onResult,
+            )
             return
         }
         if (uiState.sessionId != stateToSave.sessionId) {
@@ -995,7 +1184,12 @@ class MarkdownViewModel : ViewModel() {
                 when (outcome) {
                 is SaveOutcome.Failure -> {
                     uiState = stateAfterSaveFailure(uiState)
-                    onResult(DocumentSaveResult.Failed(outcome.failure))
+                    reportSaveResult(
+                        result = DocumentSaveResult.Failed(outcome.failure),
+                        sessionId = snapshot.sessionId,
+                        contentRevision = snapshot.contentRevision,
+                        onResult = onResult,
+                    )
                 }
 
                 is SaveOutcome.Conflict -> {
@@ -1007,16 +1201,31 @@ class MarkdownViewModel : ViewModel() {
                             contentRevision = snapshot.contentRevision,
                             observedVersion = outcome.observedVersion,
                         )
-                        onResult(DocumentSaveResult.Conflict)
+                        reportSaveResult(
+                            result = DocumentSaveResult.Conflict,
+                            sessionId = snapshot.sessionId,
+                            contentRevision = snapshot.contentRevision,
+                            onResult = onResult,
+                        )
                     } else {
-                        onResult(DocumentSaveResult.Failed(DocumentFailure.WRITE_FAILED))
+                        reportSaveResult(
+                            result = DocumentSaveResult.Failed(DocumentFailure.WRITE_FAILED),
+                            sessionId = snapshot.sessionId,
+                            contentRevision = snapshot.contentRevision,
+                            onResult = onResult,
+                        )
                     }
                 }
 
                 is SaveOutcome.Success -> {
                     if (route == SaveRoute.COPY) {
                         uiState = uiState.copy(isSaving = false)
-                        onResult(DocumentSaveResult.Copied)
+                        reportSaveResult(
+                            result = DocumentSaveResult.Copied,
+                            sessionId = snapshot.sessionId,
+                            contentRevision = snapshot.contentRevision,
+                            onResult = onResult,
+                        )
                         return@launch
                     }
                     if (route == SaveRoute.SAVE_AS) {
@@ -1028,7 +1237,12 @@ class MarkdownViewModel : ViewModel() {
                         }
                         if (unresolvedSourceBackup) {
                             uiState = uiState.copy(isSaving = false)
-                            onResult(DocumentSaveResult.Copied)
+                            reportSaveResult(
+                                result = DocumentSaveResult.Copied,
+                                sessionId = snapshot.sessionId,
+                                contentRevision = snapshot.contentRevision,
+                                onResult = onResult,
+                            )
                             return@launch
                         }
                     }
@@ -1111,10 +1325,13 @@ class MarkdownViewModel : ViewModel() {
                                 },
                             )
                             if (!recoveryReady) {
-                                onResult(
-                                    DocumentSaveResult.Failed(
+                                reportSaveResult(
+                                    result = DocumentSaveResult.Failed(
                                         DocumentFailure.RECOVERY_FAILED,
                                     ),
+                                    sessionId = snapshot.sessionId,
+                                    contentRevision = snapshot.contentRevision,
+                                    onResult = onResult,
                                 )
                                 return@launch
                             }
@@ -1148,7 +1365,12 @@ class MarkdownViewModel : ViewModel() {
                             managedFlags = previousManagedPermissionFlags,
                         )
                     }
-                    onResult(DocumentSaveResult.Saved)
+                    reportSaveResult(
+                        result = DocumentSaveResult.Saved,
+                        sessionId = snapshot.sessionId,
+                        contentRevision = snapshot.contentRevision,
+                        onResult = onResult,
+                    )
                 }
                 }
             } finally {
@@ -1491,6 +1713,7 @@ class MarkdownViewModel : ViewModel() {
         persistedContent = ""
         requiresSuccessfulSaveToClearDirty = false
         clearConflict()
+        clearPostSaveAction()
         uiState = DocumentUiState(
             sessionId = nextSessionId(),
             contentVersion = nextVersion(),
@@ -1804,5 +2027,6 @@ class MarkdownViewModel : ViewModel() {
 
     companion object {
         private const val RECOVERY_DEBOUNCE_MILLIS = 750L
+        private val NO_OP_SAVE_RESULT: (DocumentSaveResult) -> Unit = {}
     }
 }
