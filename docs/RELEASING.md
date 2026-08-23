@@ -215,8 +215,8 @@ emulator gate.
 
 ## Public release candidate
 
-This optional path is retained for a future version that explicitly needs public
-testing. It is not used for v0.3.3.
+This path is used for v0.4.0-rc.1 public testing. It was not used for v0.3.3 and
+does not alter either the historical v0.3.3 gate or the stable v0.4 gate.
 
 A release-candidate tag uses `v<major>.<minor>.<patch>-rc.<number>`. Before pushing
 one:
@@ -237,6 +237,26 @@ Publishing an RC makes a test build easy to download; it does not satisfy or wea
 the stable-release gate. Download the exact Release attachment, independently
 repeat its checksum, signer, and package-metadata checks, and use that same APK for
 any declared device test.
+
+### v0.4.0-rc.1 exact-asset check
+
+For the first v0.4 candidate, download `Mora-v0.4.0-rc.1.apk` and its `.sha256`
+sidecar from the public Pre-release, not from a local rebuild or only from the
+intermediate Actions artifact. Reuse the checksum, `apksigner`, and `aapt`
+commands in the next section with those filenames, then confirm:
+
+- package: `de.unbow.mora`;
+- `versionName`: `0.4.0-rc.1`;
+- `versionCode`: `8`;
+- `minSdk`: `26`;
+- `targetSdk`: `36`;
+- signer certificate SHA-256 equals
+  `docs/mora-release-certificate.sha256`;
+- APK SHA-256 equals the sidecar and is recorded before any installation or test.
+
+Keep the Release marked as a Pre-release and retain its bilingual pending-matrix
+and backup warning. A fix after the tag requires a later immutable RC tag and a
+higher `versionCode`; never move the tag or replace either attachment.
 
 ## Verify the exact Draft APK
 

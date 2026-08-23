@@ -1,6 +1,6 @@
 # Mora Project Status
 
-Updated: 2026-08-12
+Updated: 2026-08-23
 
 ## Current stage
 
@@ -9,14 +9,19 @@ launcher-identity correction over `v0.3.2` and intentionally
 keeps the complete v0.3.2 product behavior; signed `v0.2.0-rc.1` remains a
 historical public Pre-release.
 
-Development is now focused on the unreleased v0.4 storage-reliability milestone.
-The working implementation adds strict 5 MiB UTF-8 I/O, BOM preservation,
+Mora `v0.4.0-rc.1` (`versionCode` 8) is the current storage-reliability
+pre-release target. It adds strict 5 MiB UTF-8 I/O, BOM preservation,
 content-version conflict handling, dirty-draft recovery, an earliest-known-good
-pre-write backup, URI-grant lifecycle reconciliation, and globally serialized
-save/recovery transitions. It also adds deterministic API 36 DocumentsProvider
-instrumentation and a non-mutating generated-icon verification gate. This work
-does not change the public stable version metadata and has not been tagged or
-published.
+pre-write backup for in-place saves, URI-grant lifecycle reconciliation,
+lifecycle-stable save results, and coordination that prevents active saves or
+unresolved recovery work from being replaced. It also adds
+deterministic API 36 DocumentsProvider instrumentation and a non-mutating
+generated-icon verification gate.
+
+The annotated tag and protected signing workflow are the only path to a public
+RC asset. The current public stable release remains v0.3.3, and the complete
+real-device/local/read-only/permission-revocation/cloud-provider matrix remains
+pending and mandatory before any stable v0.4 tag.
 
 The v0.3 series keeps Mora's single-document workflow while providing:
 
@@ -163,7 +168,7 @@ It is not a release candidate and cannot update an officially signed installatio
 
 Changes involving file providers, external intents, saving, layout, launcher
 aliases, or accessibility also require focused emulator or real-device checks.
-The unreleased v0.4 storage work adds `connectedDebugAndroidTest` on an Android
+The v0.4 storage line adds `connectedDebugAndroidTest` on an Android
 16 / API 36 emulator as a repeatable provider-contract gate. It does not claim to
 cover OEM picker UI or network-backed cloud-provider behavior; those omissions
 must remain explicit whenever emulator-only validation is accepted.
@@ -195,7 +200,7 @@ GitHub Secrets are delivery infrastructure, not a backup.
   latest. Do not replace the APK or sidecar.
 - The public attachment must be downloaded again and match the approved Draft
   APK's SHA-256.
-- Future public RCs, if used, remain visibly labeled Pre-releases and never weaken
+- Public RCs remain visibly labeled Pre-releases and never weaken
   the stable gate.
 
 The operational checklist and credential names are maintained in [docs/RELEASING.md](docs/RELEASING.md).

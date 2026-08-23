@@ -4,6 +4,57 @@ All notable changes to Mora are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0-rc.1] - 2026-08-23
+
+First public test candidate for Mora's v0.4 storage-reliability work.
+
+### Added
+
+- Added app-private dirty-draft snapshots and, for in-place saves, an
+  earliest-known-good pre-write journal so interrupted or provider-reported
+  failed saves retain recoverable work.
+- Added explicit Recover, Save copy, and confirmed Discard paths for private
+  recovery records.
+- Added About/support diagnostics, bundled third-party notices, generated-icon
+  verification, and a deterministic Android 16 / API 36 DocumentsProvider gate.
+
+### Changed
+
+- Bounded Markdown payloads to 5 MiB, decoded UTF-8 strictly, and preserved an
+  existing UTF-8 BOM during normal saves.
+- Tracked durable persisted grants separately from current URI access, adopted
+  the legacy app-held grant snapshot once, and released only app-managed grants
+  that are no longer used.
+- Coordinated save, recovery, close, and incoming-intent transitions so active
+  saves or unresolved recovery work cannot be replaced.
+
+### Fixed
+
+- Detected external content changes before in-place saves and required an explicit
+  Reload, confirmed Overwrite, or Save copy decision; confirmed overwrites recheck
+  the provider version before writing.
+- Rejected Save As and Save copy destinations that match the current source URI,
+  retained dirty state after write or verification failures, and verified the
+  reopened payload's SHA-256 and byte length after a write.
+- Kept save results and post-save actions in lifecycle-stable ViewModel state so
+  Activity recreation during a slow provider operation cannot lose the result or
+  execute a stale close/open continuation.
+
+### Migration
+
+- v0.4.0-rc.1 keeps Mora's package and signing identity and increments
+  `versionCode` to 8 for an in-place update from public v0.3.3.
+- Recovery data stays in app-private no-backup storage; ordinary Markdown files
+  remain under the selected Android document provider's control.
+
+### Notes
+
+- This is a public Pre-release candidate, not a stable release. The complete
+  real-device, local, read-only, permission-revocation, and cloud-provider matrix
+  is still pending.
+- Back up important files before editing them with this candidate and report the
+  Android version and document provider when filing storage-related feedback.
+
 ## [0.3.3] - 2026-07-25
 
 Focused launcher-identity polish for the stable v0.3 line.

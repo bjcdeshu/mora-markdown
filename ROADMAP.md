@@ -6,27 +6,30 @@ Mora's direction is simple:
 
 This roadmap describes intent, not a delivery promise. Priorities may change after real-device feedback.
 
-## v0.4 — storage reliability (in development)
+## v0.4 — storage reliability (release candidate)
 
-The next behavior-focused release keeps Mora's single-document scope and hardens
+The v0.4 behavior-focused line keeps Mora's single-document scope and hardens
 the points where Android providers and process death can otherwise lose work:
 
 - detect external content-version changes before an in-place write and require an
   explicit reload, overwrite, or save-copy choice;
-- retain atomic private recovery snapshots for dirty drafts and a pre-write
-  journal containing the earliest known-good source bytes;
+- retain atomic private recovery snapshots for dirty drafts and, for in-place
+  saves, a pre-write journal containing the earliest known-good source bytes;
 - bound documents to 5 MiB, decode UTF-8 strictly, and preserve an existing UTF-8
   BOM on normal saves;
-- treat persisted and session-only URI grants separately, migrate the legacy
-  grant inventory once, and release only app-managed unreferenced grants;
-- make save, close, incoming-intent, and recovery transitions globally serialized
-  so unresolved recovery work cannot be replaced;
+- track durable persisted grants separately from current URI access, adopt the
+  legacy app-held grant snapshot once, and release only app-managed unreferenced
+  grants;
+- coordinate save, close, incoming-intent, and recovery transitions so active
+  saves or unresolved recovery work cannot be replaced;
 - add deterministic DocumentsProvider instrumentation on an Android 16 / API 36
   emulator, About/support diagnostics, generated-icon verification, and grouped
   Gradle dependency maintenance.
 
-This work is not a public release yet. Version metadata remains at the current
-stable `0.3.3` / `versionCode` 7 until a separate release decision and gate.
+`0.4.0-rc.1` / `versionCode` 8 is the first public testing target for this work.
+The current public stable release remains v0.3.3. The RC records that the complete
+real-device and provider matrix is pending; stable v0.4 remains blocked until the
+exact signed candidate passes that gate and receives a separate release decision.
 
 ## v0.3.3 — launcher identity polish
 
@@ -69,16 +72,16 @@ Signed `v0.2.0-rc.1` remains a historical public Pre-release, while stable
 v0.2.0 was never published. The `v0.3.0` tag and hidden Draft remain an
 unpublished, blocked audit record and must not be moved, replaced, or published.
 
-## v0.3.x — focused follow-up
+## Focused follow-up
 
 - Add a simple option to disable Android 12+ dynamic color and use Mora's calm
   fallback palette; this does not expand into a custom color editor.
-- Improve draft recovery and protection against accidental data loss. This is
-  being implemented in the v0.4 reliability work above.
+- Continue validating the v0.4 recovery and provider protections on the exact
+  signed candidates described above.
 
 ## Next
 
-Priorities after v0.3.3:
+Priorities after the v0.4 reliability line:
 
 - Improve relative local-image handling within Android's permission model
 - Strengthen accessibility, large-text, tablet, and landscape behavior

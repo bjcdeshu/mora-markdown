@@ -45,7 +45,7 @@ Mora reads files selected by the user or delegated by another Android app. It do
 - Normal saves retain the current writable document URI. Save requests are
   serialized, and a new destination is requested only for a new document or a
   read-only source.
-- The unreleased reliability work compares the provider content version before
+- The v0.4 reliability line compares the provider content version before
   writing, records a private pre-write backup, and verifies the reopened bytes
   after writing. The final check-to-write interval is still best effort because
   Android document providers do not offer Mora a universal atomic compare-and-swap
