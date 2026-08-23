@@ -22,9 +22,9 @@ First public test candidate for Mora's v0.4 storage-reliability work.
 
 - Bounded Markdown payloads to 5 MiB, decoded UTF-8 strictly, and preserved an
   existing UTF-8 BOM during normal saves.
-- Tracked durable persisted grants separately from current URI access, migrated
-  the legacy grant inventory once, and released only app-managed grants that are
-  no longer used.
+- Tracked durable persisted grants separately from current URI access, adopted
+  the legacy app-held grant snapshot once, and released only app-managed grants
+  that are no longer used.
 - Coordinated save, recovery, close, and incoming-intent transitions so active
   saves or unresolved recovery work cannot be replaced.
 
@@ -35,7 +35,7 @@ First public test candidate for Mora's v0.4 storage-reliability work.
   the provider version before writing.
 - Rejected Save As and Save copy destinations that match the current source URI,
   retained dirty state after write or verification failures, and verified the
-  reopened payload after a write.
+  reopened payload's SHA-256 and byte length after a write.
 - Kept save results and post-save actions in lifecycle-stable ViewModel state so
   Activity recreation during a slow provider operation cannot lose the result or
   execute a stale close/open continuation.

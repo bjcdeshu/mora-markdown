@@ -17,8 +17,9 @@ the points where Android providers and process death can otherwise lose work:
   saves, a pre-write journal containing the earliest known-good source bytes;
 - bound documents to 5 MiB, decode UTF-8 strictly, and preserve an existing UTF-8
   BOM on normal saves;
-- track durable persisted grants separately from current URI access, migrate the
-  legacy grant inventory once, and release only app-managed unreferenced grants;
+- track durable persisted grants separately from current URI access, adopt the
+  legacy app-held grant snapshot once, and release only app-managed unreferenced
+  grants;
 - coordinate save, close, incoming-intent, and recovery transitions so active
   saves or unresolved recovery work cannot be replaced;
 - add deterministic DocumentsProvider instrumentation on an Android 16 / API 36
