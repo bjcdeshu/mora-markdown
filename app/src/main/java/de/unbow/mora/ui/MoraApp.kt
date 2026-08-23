@@ -7,16 +7,20 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -38,15 +42,21 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import de.unbow.mora.IncomingDocumentRequest
 import de.unbow.mora.R
 import de.unbow.mora.data.AppSettings
+import de.unbow.mora.data.DirtyDocumentRecovery
 import de.unbow.mora.data.DocumentFailure
-import de.unbow.mora.data.DocumentRepository
+import de.unbow.mora.data.DocumentPermission
+import de.unbow.mora.data.DocumentPermissionManager
 import de.unbow.mora.data.ReaderSettingsRepository
 import de.unbow.mora.markdown.ReaderPalette
 import de.unbow.mora.markdown.ReaderPreferences
 import de.unbow.mora.model.DocumentSaveResult
+import de.unbow.mora.model.DocumentPostSaveAction
 import de.unbow.mora.model.DocumentUiError
 import de.unbow.mora.model.MarkdownViewModel
 import de.unbow.mora.model.displayDocumentName
@@ -80,6 +90,17 @@ internal fun isSaveAsResultCurrent(
     currentSessionId: Long,
 ): Boolean = requestSessionId != null && requestSessionId == currentSessionId
 
+internal fun shouldConsumeAttemptedIncomingRequest(
+    hasUri: Boolean,
+    accepted: Boolean,
+): Boolean = accepted || !hasUri
+
+private enum class SaveDestinationPurpose {
+    SAVE_DOCUMENT,
+    SAVE_COPY,
+    RECOVERY_COPY,
+}
+
 @Composable
 fun MoraApp(
     appSettings: AppSettings,
@@ -91,6 +112,13 @@ fun MoraApp(
     val context = LocalContext.current
     val state = markdownViewModel.uiState
     val pendingIncomingRequest = markdownViewModel.pendingIncomingRequest
+    val pendingConflict = markdownViewModel.pendingConflict
+    val pendingSaveResult = markdownViewModel.pendingSaveResult
+    val postSaveAction = markdownViewModel.postSaveAction
+    val recoverableWork = markdownViewModel.recoverableWork
+    val isRecoveryInitialized = markdownViewModel.isRecoveryInitialized
+    val isRecoveryTransitioning = markdownViewModel.isRecoveryTransitioning
+    val isRecoverySaving = markdownViewModel.isRecoverySaving
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val storedReaderPreferences = remember(context) { ReaderSettingsRepository.load(context) }
@@ -101,8 +129,15 @@ fun MoraApp(
     val newDraftTemplate = stringResource(R.string.new_draft_template)
     val untitledHeading = stringResource(R.string.untitled_heading)
     val savedMessage = stringResource(R.string.document_saved)
+    val copiedMessage = stringResource(R.string.document_copy_saved)
     val saveFailedMessage = stringResource(R.string.document_save_failed)
     val saveAsRequiredMessage = stringResource(R.string.document_requires_save_as)
+    val documentTooLargeMessage = stringResource(R.string.document_too_large)
+    val malformedUtf8Message = stringResource(R.string.document_invalid_utf8)
+    val permissionLostMessage = stringResource(R.string.document_permission_lost)
+    val recoveryFailedMessage = stringResource(R.string.document_recovery_failed)
+    val verificationFailedMessage = stringResource(R.string.document_verification_failed)
+    val waitForSaveMessage = stringResource(R.string.wait_for_save)
     val readOnlyNotice = stringResource(R.string.read_only_document_notice)
     val languageSettingsUnavailable = stringResource(R.string.language_settings_unavailable)
     val launcherIconChangeFailed = stringResource(R.string.launcher_icon_change_failed)
@@ -115,9 +150,18 @@ fun MoraApp(
     var mode by rememberSaveable { mutableStateOf(DocumentMode.READING) }
     var showReaderAppearance by rememberSaveable { mutableStateOf(false) }
     var showAppSettings by rememberSaveable { mutableStateOf(false) }
-    var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
+    var showCloseDialog by rememberSaveable { mutableStateOf(false) }
     var saveAsRequestSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
-    val saveAsPending = saveAsRequestSessionId == state.sessionId
+    var saveAsRequestRevision by rememberSaveable { mutableLongStateOf(Long.MIN_VALUE) }
+    var saveDestinationPurpose by rememberSaveable {
+        mutableStateOf<SaveDestinationPurpose?>(null)
+    }
+    var recoveryCopyId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingRecoveryDiscardId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showConflictVersionChoice by rememberSaveable { mutableStateOf(false) }
+    var overlayStateSessionId by rememberSaveable { mutableLongStateOf(state.sessionId) }
+    val saveAsPending = saveDestinationPurpose != null &&
+        saveAsRequestSessionId == state.sessionId
     var fontSize by rememberSaveable {
         mutableFloatStateOf(storedReaderPreferences.fontSizePx)
     }
@@ -181,39 +225,89 @@ fun MoraApp(
         ReaderSettingsRepository.save(context, currentPreferences())
     }
 
-    fun openDocument(uri: Uri) {
+    fun openDocument(
+        uri: Uri,
+        permission: DocumentPermission? = null,
+    ): Boolean {
+        if (!markdownViewModel.canStartNewWork()) return false
+        val accepted = markdownViewModel.openDocument(
+            context = context,
+            uri = uri,
+            fallbackName = defaultDocumentFilename,
+            acquiredPermission = permission,
+        )
+        if (!accepted) return false
         showReaderAppearance = false
         showAppSettings = false
         readerScrollY = 0
         mode = DocumentMode.READING
-        markdownViewModel.openDocument(
-            context = context,
-            uri = uri,
-            fallbackName = defaultDocumentFilename,
-        )
+        return true
     }
 
-    fun acceptIncoming(request: IncomingDocumentRequest) {
-        markdownViewModel.clearPendingIncomingRequest()
+    fun acceptIncoming(request: IncomingDocumentRequest): Boolean {
+        if (!markdownViewModel.canStartNewWork()) return false
         val uri = request.uri
-        if (uri != null) {
-            DocumentRepository.persistPermission(context, uri, request.grantedFlags)
-            openDocument(uri)
+        val accepted = if (uri != null) {
+            val permission = DocumentPermissionManager.acquire(
+                context = context,
+                uri = uri,
+                grantedFlags = request.grantedFlags,
+            )
+            openDocument(uri, permission)
         } else {
-            showReaderAppearance = false
-            showAppSettings = false
-            readerScrollY = 0
-            mode = DocumentMode.READING
-            markdownViewModel.openSharedText(
+            val failure = markdownViewModel.openSharedText(
                 content = request.sharedText.orEmpty(),
                 name = request.suggestedName,
             )
+            if (failure == null) {
+                showReaderAppearance = false
+                showAppSettings = false
+                readerScrollY = 0
+                mode = DocumentMode.READING
+                true
+            } else {
+                false
+            }
         }
-        onIncomingRequestConsumed(request.id)
+        if (shouldConsumeAttemptedIncomingRequest(hasUri = uri != null, accepted = accepted)) {
+            markdownViewModel.clearPendingIncomingRequest(request.id)
+            onIncomingRequestConsumed(request.id)
+        }
+        return accepted
+    }
+
+    fun failureMessage(failure: DocumentFailure): String = when (failure) {
+        DocumentFailure.SAVE_AS_REQUIRED -> saveAsRequiredMessage
+        DocumentFailure.FILE_TOO_LARGE -> documentTooLargeMessage
+        DocumentFailure.MALFORMED_UTF8 -> malformedUtf8Message
+        DocumentFailure.PERMISSION_LOST -> permissionLostMessage
+        DocumentFailure.RECOVERY_FAILED -> recoveryFailedMessage
+        DocumentFailure.VERIFICATION_FAILED -> verificationFailedMessage
+        DocumentFailure.READ_FAILED,
+        DocumentFailure.WRITE_FAILED,
+        -> saveFailedMessage
     }
 
     LaunchedEffect(Unit) {
         markdownViewModel.initialize(context)
+    }
+
+    LaunchedEffect(pendingSaveResult?.eventId) {
+        val event = pendingSaveResult ?: return@LaunchedEffect
+        when (event.result) {
+            DocumentSaveResult.Saved -> {
+                scope.launch { snackbarHostState.showSnackbar(savedMessage) }
+                markdownViewModel.consumePendingSaveResult(event.eventId)
+            }
+            DocumentSaveResult.Copied -> {
+                scope.launch { snackbarHostState.showSnackbar(copiedMessage) }
+                markdownViewModel.consumePendingSaveResult(event.eventId)
+            }
+            DocumentSaveResult.Conflict -> {
+                markdownViewModel.consumePendingSaveResult(event.eventId)
+            }
+            is DocumentSaveResult.Failed -> return@LaunchedEffect
+        }
     }
 
     LaunchedEffect(incomingRequest?.id) {
@@ -221,14 +315,37 @@ fun MoraApp(
         markdownViewModel.initialize(context)
         showReaderAppearance = false
         showAppSettings = false
-        showDiscardDialog = false
-        request.uri?.let { uri ->
-            DocumentRepository.persistPermission(context, uri, request.grantedFlags)
+        showCloseDialog = false
+        markdownViewModel.deferIncomingRequest(request)
+    }
+
+    LaunchedEffect(
+        pendingIncomingRequest?.id,
+        isRecoveryInitialized,
+        isRecoveryTransitioning,
+        isRecoverySaving,
+        recoverableWork?.recoveryId,
+        state.hasDocument,
+        state.isDirty,
+        state.isSaving,
+        state.sessionId,
+        saveAsPending,
+    ) {
+        val request = pendingIncomingRequest ?: return@LaunchedEffect
+        if (
+            !isRecoveryInitialized ||
+            isRecoveryTransitioning ||
+            isRecoverySaving ||
+            recoverableWork != null ||
+            state.isSaving ||
+            saveAsPending
+        ) {
+            return@LaunchedEffect
         }
-        if (state.hasDocument && state.isDirty) {
-            markdownViewModel.deferIncomingRequest(request)
-        } else {
+        if (!state.hasDocument) {
             acceptIncoming(request)
+        } else if (!state.isDirty) {
+            markdownViewModel.closeDocument(context)
         }
     }
 
@@ -255,19 +372,50 @@ fun MoraApp(
         }
     }
 
+    LaunchedEffect(recoverableWork?.recoveryId) {
+        if (pendingRecoveryDiscardId != recoverableWork?.recoveryId) {
+            pendingRecoveryDiscardId = null
+        }
+    }
+
+    LaunchedEffect(pendingConflict) {
+        if (pendingConflict == null) showConflictVersionChoice = false
+    }
+
     LaunchedEffect(state.sessionId) {
+        if (overlayStateSessionId == state.sessionId) return@LaunchedEffect
+        overlayStateSessionId = state.sessionId
         resetPredictiveBackImmediately()
+        saveDestinationPurpose = null
+        saveAsRequestSessionId = null
+        recoveryCopyId = null
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, markdownViewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) markdownViewModel.flushRecovery()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val localizedError = when (val error = state.error) {
-        is DocumentUiError.OpenFailed -> stringResource(
-            R.string.open_document_failed,
-            displayDocumentName(
-                storedName = error.documentName,
-                usesLocalizedFallback = error.usesLocalizedFallback,
-                localizedFallback = defaultDocumentFilename,
-            ),
-        )
+        is DocumentUiError.OpenFailed -> when (error.failure) {
+            DocumentFailure.FILE_TOO_LARGE -> documentTooLargeMessage
+            DocumentFailure.MALFORMED_UTF8 -> malformedUtf8Message
+            DocumentFailure.PERMISSION_LOST -> permissionLostMessage
+            else -> stringResource(
+                R.string.open_document_failed,
+                displayDocumentName(
+                    storedName = error.documentName,
+                    usesLocalizedFallback = error.usesLocalizedFallback,
+                    localizedFallback = defaultDocumentFilename,
+                ),
+            )
+        }
+
+        is DocumentUiError.ActionFailed -> failureMessage(error.failure)
 
         null -> null
     }
@@ -277,56 +425,102 @@ fun MoraApp(
         markdownViewModel.consumeError()
     }
 
-    val notifySave: (DocumentSaveResult) -> Unit = { result ->
-        scope.launch {
-            snackbarHostState.showSnackbar(
-                when (result) {
-                    DocumentSaveResult.Saved -> savedMessage
-                    is DocumentSaveResult.Failed -> when (result.failure) {
-                        DocumentFailure.SAVE_AS_REQUIRED -> saveAsRequiredMessage
-                        DocumentFailure.READ_FAILED,
-                        DocumentFailure.WRITE_FAILED,
-                        -> saveFailedMessage
-                    }
-                },
-            )
-        }
-    }
-
     val createDocument = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/markdown"),
     ) { uri ->
         val requestSessionId = saveAsRequestSessionId
+        val requestRevision = saveAsRequestRevision
+        val purpose = saveDestinationPurpose
+        val requestedRecoveryId = recoveryCopyId
         saveAsRequestSessionId = null
-        if (
-            uri == null ||
-            !isSaveAsResultCurrent(
-                requestSessionId = requestSessionId,
-                currentSessionId = markdownViewModel.uiState.sessionId,
-            )
-        ) {
+        saveAsRequestRevision = Long.MIN_VALUE
+        saveDestinationPurpose = null
+        recoveryCopyId = null
+        if (uri == null || purpose == null) {
+            markdownViewModel.clearPostSaveAction()
             return@rememberLauncherForActivityResult
         }
-        DocumentRepository.persistPermission(context, uri)
-        markdownViewModel.saveAs(context, uri, notifySave)
+        if (purpose == SaveDestinationPurpose.RECOVERY_COPY) {
+            val recovery = markdownViewModel.recoverableWork
+                ?.takeIf { it.recoveryId == requestedRecoveryId }
+                ?: return@rememberLauncherForActivityResult
+            markdownViewModel.saveRecoveryCopy(context, uri, recovery)
+            return@rememberLauncherForActivityResult
+        }
+        val current = markdownViewModel.uiState
+        if (
+            !isSaveAsResultCurrent(requestSessionId, current.sessionId) ||
+            requestRevision != current.contentRevision
+        ) {
+            markdownViewModel.clearPostSaveAction()
+            return@rememberLauncherForActivityResult
+        }
+        when (purpose) {
+            SaveDestinationPurpose.SAVE_DOCUMENT ->
+                markdownViewModel.saveAs(context, uri)
+
+            SaveDestinationPurpose.SAVE_COPY ->
+                markdownViewModel.saveCopy(context, uri)
+
+            SaveDestinationPurpose.RECOVERY_COPY -> Unit
+        }
     }
 
     val openDocumentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
         uri ?: return@rememberLauncherForActivityResult
-        DocumentRepository.persistPermission(context, uri)
-        openDocument(uri)
+        if (!markdownViewModel.canStartNewWork()) return@rememberLauncherForActivityResult
+        val permission = DocumentPermissionManager.acquire(context, uri)
+        openDocument(uri, permission)
+    }
+
+    fun launchSaveDestination(
+        purpose: SaveDestinationPurpose,
+        recovery: DirtyDocumentRecovery? = null,
+    ) {
+        val current = markdownViewModel.uiState
+        saveDestinationPurpose = purpose
+        saveAsRequestSessionId = current.sessionId
+        saveAsRequestRevision = current.contentRevision
+        recoveryCopyId = recovery?.recoveryId
+        createDocument.launch(
+            normalizedMarkdownName(
+                recovery?.name ?: displayedDocumentName,
+                untitledFilenameBase,
+            ),
+        )
+    }
+
+    fun saveCurrentDocument() {
+        val current = markdownViewModel.uiState
+        if (current.isSaving || saveDestinationPurpose != null) return
+        if (
+            shouldUseSaveAs(current.uri != null, current.canWrite) ||
+            current.baseVersion == null
+        ) {
+            launchSaveDestination(SaveDestinationPurpose.SAVE_DOCUMENT)
+        } else {
+            markdownViewModel.save(context)
+        }
     }
 
     val closeDocument: () -> Unit = {
         showReaderAppearance = false
         showAppSettings = false
-        if (state.isDirty) {
-            showDiscardDialog = true
+        val current = markdownViewModel.uiState
+        if (
+            current.isSaving ||
+            saveAsPending ||
+            markdownViewModel.isRecoveryTransitioning ||
+            markdownViewModel.isRecoverySaving
+        ) {
+            scope.launch { snackbarHostState.showSnackbar(waitForSaveMessage) }
+        } else if (current.isDirty) {
+            showCloseDialog = true
         } else {
             readerScrollY = 0
-            markdownViewModel.closeDocument()
+            markdownViewModel.closeDocument(context)
         }
     }
 
@@ -351,14 +545,20 @@ fun MoraApp(
                     },
                 ),
             recentDocuments = markdownViewModel.recentDocuments,
+            recoverableWork = recoverableWork,
             snackbarHostState = snackbarHostState,
             showSnackbarHost = !state.hasDocument,
-            interactive = !state.hasDocument,
+            interactive = !state.hasDocument &&
+                isRecoveryInitialized &&
+                !isRecoveryTransitioning &&
+                !isRecoverySaving &&
+                !saveAsPending,
             onOpenFile = {
                 openDocumentLauncher.launch(
                     arrayOf(
                         "text/markdown",
                         "text/x-markdown",
+                        "application/markdown",
                         "application/x-markdown",
                         "text/plain",
                         "application/octet-stream",
@@ -366,13 +566,30 @@ fun MoraApp(
                 )
             },
             onNewDraft = {
-                showAppSettings = false
-                readerScrollY = 0
-                mode = DocumentMode.EDITING
-                markdownViewModel.newDraft(
+                val failure = markdownViewModel.newDraft(
                     name = untitledDocumentFilename,
                     initialContent = newDraftTemplate,
                 )
+                if (failure == null) {
+                    showAppSettings = false
+                    readerScrollY = 0
+                    mode = DocumentMode.EDITING
+                }
+            },
+            onRecover = { recovery ->
+                showAppSettings = false
+                readerScrollY = 0
+                mode = DocumentMode.EDITING
+                markdownViewModel.recover(recovery)
+            },
+            onSaveRecoveryCopy = { recovery ->
+                launchSaveDestination(
+                    purpose = SaveDestinationPurpose.RECOVERY_COPY,
+                    recovery = recovery,
+                )
+            },
+            onDiscardRecovery = { recovery ->
+                pendingRecoveryDiscardId = recovery.recoveryId
             },
             onOpenRecent = { document ->
                 openDocument(document.uri)
@@ -436,7 +653,7 @@ fun MoraApp(
                     documentUri = state.uri,
                     name = displayedDocumentName,
                     dirty = state.isDirty,
-                    saving = state.isSaving || saveAsPending,
+                    saving = state.isSaving || saveAsPending || isRecoveryTransitioning,
                     loading = state.isLoading,
                     markdown = state.content,
                     editorValue = editorValue,
@@ -468,8 +685,13 @@ fun MoraApp(
                     },
                     onBack = closeDocument,
                     predictiveBackBlocked = showReaderAppearance ||
-                        showDiscardDialog ||
-                        pendingIncomingRequest != null,
+                        showCloseDialog ||
+                        state.isSaving ||
+                        saveAsPending ||
+                        isRecoveryTransitioning ||
+                        pendingIncomingRequest != null ||
+                        pendingConflict != null ||
+                        pendingSaveResult?.result is DocumentSaveResult.Failed,
                     predictiveBackVisualActive = predictiveBackVisualActive,
                     onPredictiveBackProgress = { gestureKey, progress, swipeEdge ->
                         if (markdownViewModel.uiState.sessionId == gestureKey) {
@@ -490,13 +712,15 @@ fun MoraApp(
                         if (
                             currentState.hasDocument &&
                             currentState.sessionId == gestureKey &&
-                            !currentState.isDirty
+                            !currentState.isDirty &&
+                            !currentState.isSaving &&
+                            !markdownViewModel.isRecoveryTransitioning
                         ) {
                             resetPredictiveBackImmediately()
                             showReaderAppearance = false
                             showAppSettings = false
                             readerScrollY = 0
-                            markdownViewModel.closeDocument()
+                            markdownViewModel.closeDocument(context)
                         } else {
                             animatePredictiveBackCancellation()
                         }
@@ -505,29 +729,11 @@ fun MoraApp(
                         showAppSettings = false
                         showReaderAppearance = true
                     },
-                    onSave = {
-                        if (!state.isSaving && !saveAsPending) {
-                            if (
-                                shouldUseSaveAs(
-                                    hasUri = state.uri != null,
-                                    canWrite = state.canWrite,
-                                )
-                            ) {
-                                saveAsRequestSessionId = state.sessionId
-                                createDocument.launch(
-                                    normalizedMarkdownName(
-                                        displayedDocumentName,
-                                        untitledFilenameBase,
-                                    ),
-                                )
-                            } else {
-                                markdownViewModel.save(context, notifySave)
-                            }
-                        }
-                    },
+                    onSave = ::saveCurrentDocument,
                     onEditorChanged = { value ->
-                        editorValue = value
-                        markdownViewModel.updateContent(value.text)
+                        if (markdownViewModel.updateContent(value.text) == null) {
+                            editorValue = value
+                        }
                     },
                 )
             }
@@ -579,55 +785,271 @@ fun MoraApp(
         )
     }
 
-    if (showDiscardDialog) {
+    if (showCloseDialog) {
         AlertDialog(
-            onDismissRequest = { showDiscardDialog = false },
-            title = { Text(stringResource(R.string.discard_changes_title)) },
-            text = { Text(stringResource(R.string.discard_changes_body)) },
+            onDismissRequest = { showCloseDialog = false },
+            title = { Text(stringResource(R.string.unsaved_close_title)) },
+            text = { Text(stringResource(R.string.unsaved_close_body)) },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDiscardDialog = false
-                        showReaderAppearance = false
-                        showAppSettings = false
-                        readerScrollY = 0
-                        markdownViewModel.closeDocument()
-                    },
-                ) { Text(stringResource(R.string.discard_changes)) }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = {
+                            showCloseDialog = false
+                            markdownViewModel.beginPostSaveAction(
+                                DocumentPostSaveAction.Close,
+                            )
+                            saveCurrentDocument()
+                        },
+                    ) { Text(stringResource(R.string.save_document)) }
+                    TextButton(
+                        onClick = {
+                            showCloseDialog = false
+                            showReaderAppearance = false
+                            showAppSettings = false
+                            readerScrollY = 0
+                            markdownViewModel.closeDocument(
+                                context = context,
+                                discardChanges = true,
+                            )
+                        },
+                    ) { Text(stringResource(R.string.discard_changes)) }
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showDiscardDialog = false }) {
+                TextButton(onClick = { showCloseDialog = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             },
         )
     }
 
-    pendingIncomingRequest?.let { request ->
+    pendingIncomingRequest
+        ?.takeIf {
+            postSaveAction !is DocumentPostSaveAction.OpenIncoming &&
+                isRecoveryInitialized &&
+                !isRecoveryTransitioning &&
+                !isRecoverySaving &&
+                recoverableWork == null &&
+                state.hasDocument &&
+                state.isDirty &&
+                !state.isSaving &&
+                !saveAsPending &&
+                pendingConflict == null &&
+                pendingSaveResult?.result !is DocumentSaveResult.Failed
+        }
+        ?.let { request ->
         AlertDialog(
             onDismissRequest = {
                 markdownViewModel.clearPendingIncomingRequest(request.id)
                 onIncomingRequestConsumed(request.id)
+                markdownViewModel.clearPostSaveAction()
             },
             title = { Text(stringResource(R.string.open_new_document_title)) },
             text = { Text(stringResource(R.string.open_new_document_body)) },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        acceptIncoming(request)
-                    },
-                ) { Text(stringResource(R.string.discard_and_open)) }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = {
+                            markdownViewModel.beginPostSaveAction(
+                                DocumentPostSaveAction.OpenIncoming(request.id),
+                            )
+                            saveCurrentDocument()
+                        },
+                    ) { Text(stringResource(R.string.save_document)) }
+                    TextButton(
+                        onClick = {
+                            markdownViewModel.closeDocument(
+                                context = context,
+                                discardChanges = true,
+                            )
+                        },
+                    ) { Text(stringResource(R.string.discard_and_open)) }
+                }
             },
             dismissButton = {
                 TextButton(
                     onClick = {
                         markdownViewModel.clearPendingIncomingRequest(request.id)
                         onIncomingRequestConsumed(request.id)
+                        markdownViewModel.clearPostSaveAction()
                     },
                 ) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
+
+    recoverableWork
+        ?.takeIf { it.recoveryId == pendingRecoveryDiscardId }
+        ?.let { recovery ->
+            AlertDialog(
+                onDismissRequest = { pendingRecoveryDiscardId = null },
+                title = {
+                    Text(
+                        stringResource(
+                            if (recovery.isOriginalBackup) {
+                                R.string.delete_backup_confirmation_title
+                            } else {
+                                R.string.discard_recovery_title
+                            },
+                        ),
+                    )
+                },
+                text = {
+                    Text(
+                        stringResource(
+                            if (recovery.isOriginalBackup) {
+                                R.string.delete_backup_confirmation_body
+                            } else {
+                                R.string.discard_recovery_body
+                            },
+                        ),
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                        onClick = {
+                            pendingRecoveryDiscardId = null
+                            markdownViewModel.discardRecovery(context, recovery)
+                        },
+                    ) {
+                        Text(
+                            stringResource(
+                                if (recovery.isOriginalBackup) {
+                                    R.string.delete_backup
+                                } else {
+                                    R.string.discard_recovery
+                                },
+                            ),
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingRecoveryDiscardId = null }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                },
+            )
+        }
+
+    pendingConflict?.let {
+        if (showConflictVersionChoice) {
+            AlertDialog(
+                onDismissRequest = { showConflictVersionChoice = false },
+                title = { Text(stringResource(R.string.choose_version_title)) },
+                text = { Text(stringResource(R.string.choose_version_body)) },
+                confirmButton = {
+                    TextButton(
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                        onClick = {
+                            showConflictVersionChoice = false
+                            markdownViewModel.overwriteConflict(context)
+                        },
+                    ) { Text(stringResource(R.string.overwrite_document)) }
+                },
+                dismissButton = {
+                    TextButton(
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                        onClick = {
+                            showConflictVersionChoice = false
+                            markdownViewModel.clearPostSaveAction()
+                            markdownViewModel.reloadConflict(context)
+                        },
+                    ) { Text(stringResource(R.string.reload_document)) }
+                },
+            )
+        } else {
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text(stringResource(R.string.external_change_title)) },
+                text = { Text(stringResource(R.string.external_change_body)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            markdownViewModel.clearConflict()
+                            launchSaveDestination(SaveDestinationPurpose.SAVE_COPY)
+                        },
+                    ) { Text(stringResource(R.string.save_copy)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showConflictVersionChoice = true }) {
+                        Text(stringResource(R.string.choose_version))
+                    }
+                },
+            )
+        }
+    }
+
+    pendingSaveResult
+        ?.takeIf { it.result is DocumentSaveResult.Failed }
+        ?.let { event ->
+            val failure = (event.result as DocumentSaveResult.Failed).failure
+            val recovery = recoverableWork?.takeIf { work ->
+                work.recoveryId == event.recoveryId
+            }
+            fun cancelFailure() {
+                markdownViewModel.consumePendingSaveResult(event.eventId)
+                markdownViewModel.clearPostSaveAction()
+            }
+            AlertDialog(
+                onDismissRequest = ::cancelFailure,
+                title = { Text(stringResource(R.string.save_failed_title)) },
+                text = { Text(failureMessage(failure)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            markdownViewModel.consumePendingSaveResult(event.eventId)
+                            if (recovery != null) {
+                                launchSaveDestination(
+                                    SaveDestinationPurpose.RECOVERY_COPY,
+                                    recovery,
+                                )
+                            } else {
+                                launchSaveDestination(SaveDestinationPurpose.SAVE_COPY)
+                            }
+                        },
+                    ) {
+                        Text(
+                            stringResource(
+                                if (recovery != null) {
+                                    R.string.try_another_location
+                                } else {
+                                    R.string.save_copy
+                                },
+                            ),
+                        )
+                    }
+                },
+                dismissButton = {
+                    if (recovery != null) {
+                        TextButton(onClick = ::cancelFailure) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    } else {
+                        TextButton(
+                            onClick = {
+                                markdownViewModel.consumePendingSaveResult(event.eventId)
+                                val current = markdownViewModel.uiState
+                                if (
+                                    current.sessionId == event.sessionId &&
+                                    current.contentRevision == event.contentRevision
+                                ) {
+                                    saveCurrentDocument()
+                                } else {
+                                    markdownViewModel.clearPostSaveAction()
+                                }
+                            },
+                        ) { Text(stringResource(R.string.retry)) }
+                    }
+                },
+            )
+        }
 }
 
 private fun normalizedMarkdownName(name: String, fallbackName: String): String {

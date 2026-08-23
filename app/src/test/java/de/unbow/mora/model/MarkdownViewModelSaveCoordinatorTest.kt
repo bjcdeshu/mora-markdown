@@ -1,5 +1,9 @@
 package de.unbow.mora.model
 
+import android.content.Intent
+import de.unbow.mora.data.DocumentFailure
+import de.unbow.mora.data.DocumentPermission
+import de.unbow.mora.data.DocumentVersion
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -10,8 +14,39 @@ import org.junit.Test
 class MarkdownViewModelSaveCoordinatorTest {
 
     @Test
+    fun `new target routes reject the exact current source uri`() {
+        val source = "content://de.unbow.mora.test/documents/source"
+
+        assertTrue(targetsCurrentSource(source, source))
+        assertFalse(targetsCurrentSource(source, "$source-copy"))
+        assertFalse(targetsCurrentSource(null, source))
+    }
+
+    @Test
+    fun `cleared stale recovery failure is silent after a successful clean save`() {
+        assertFalse(
+            shouldReportRecoveryPersistenceFailure(
+                currentRecoveryId = "recovery-1",
+                currentContentRevision = 7L,
+                currentIsDirty = false,
+                attemptedRecoveryId = "recovery-1",
+                attemptedContentRevision = 7L,
+            ),
+        )
+        assertTrue(
+            shouldReportRecoveryPersistenceFailure(
+                currentRecoveryId = "recovery-1",
+                currentContentRevision = 8L,
+                currentIsDirty = true,
+                attemptedRecoveryId = "recovery-1",
+                attemptedContentRevision = 8L,
+            ),
+        )
+    }
+
+    @Test
     fun `a second save cannot start while the first write is active`() {
-        val coordinator = DocumentSaveCoordinator()
+        val coordinator = DocumentSaveCoordinator.isolatedForTesting()
         val first = coordinator.tryBegin(
             sessionId = 7L,
             contentRevision = 3L,
@@ -28,18 +63,18 @@ class MarkdownViewModelSaveCoordinatorTest {
         )
 
         coordinator.finish(requireNotNull(first))
-        assertNotNull(
-            coordinator.tryBegin(
-                sessionId = 7L,
-                contentRevision = 4L,
-                content = "# Next snapshot",
-            ),
+        val second = coordinator.tryBegin(
+            sessionId = 7L,
+            contentRevision = 4L,
+            content = "# Next snapshot",
         )
+        assertNotNull(second)
+        coordinator.finish(requireNotNull(second))
     }
 
     @Test
-    fun `a slow save from an old document does not block the current session`() {
-        val coordinator = DocumentSaveCoordinator()
+    fun `only one destructive save can run across document sessions`() {
+        val coordinator = DocumentSaveCoordinator.isolatedForTesting()
         val oldDocument = coordinator.tryBegin(
             sessionId = 7L,
             contentRevision = 3L,
@@ -53,7 +88,40 @@ class MarkdownViewModelSaveCoordinatorTest {
         )
 
         assertNotNull(oldDocument)
-        assertNotNull(currentDocument)
+        assertNull(currentDocument)
+
+        coordinator.finish(requireNotNull(oldDocument))
+        val next = coordinator.tryBegin(
+            sessionId = 8L,
+            contentRevision = 1L,
+            content = "# Current document",
+        )
+        assertNotNull(next)
+        coordinator.finish(requireNotNull(next))
+    }
+
+    @Test
+    fun `save coordination is shared across view model instances`() {
+        val firstCoordinator = DocumentSaveCoordinator()
+        val secondCoordinator = DocumentSaveCoordinator()
+        val first = requireNotNull(
+            firstCoordinator.tryBegin(
+                sessionId = 1L,
+                contentRevision = 1L,
+                content = "first instance",
+            ),
+        )
+        try {
+            assertNull(
+                secondCoordinator.tryBegin(
+                    sessionId = 1L,
+                    contentRevision = 1L,
+                    content = "second instance",
+                ),
+            )
+        } finally {
+            firstCoordinator.finish(first)
+        }
     }
 
     @Test
@@ -129,5 +197,150 @@ class MarkdownViewModelSaveCoordinatorTest {
         assertFalse(shouldUseSaveAs(hasUri = true, canWrite = true))
         assertTrue(shouldUseSaveAs(hasUri = false, canWrite = true))
         assertTrue(shouldUseSaveAs(hasUri = true, canWrite = false))
+    }
+
+    @Test
+    fun `external version comparison uses both digest and byte count`() {
+        val baseline = DocumentVersion(sha256 = "a".repeat(64), byteCount = 12)
+
+        assertFalse(hasExternalVersionChanged(baseline, baseline.copy()))
+        assertTrue(
+            hasExternalVersionChanged(
+                baseline,
+                baseline.copy(sha256 = "b".repeat(64)),
+            ),
+        )
+        assertTrue(
+            hasExternalVersionChanged(
+                baseline,
+                baseline.copy(byteCount = 13),
+            ),
+        )
+    }
+
+    @Test
+    fun `conflict action is stale after the editor advances`() {
+        val snapshot = DocumentSaveSnapshot(
+            requestId = 1L,
+            sessionId = 7L,
+            contentRevision = 3L,
+            content = "snapshot",
+        )
+
+        assertTrue(isSaveSnapshotCurrent(7L, 3L, snapshot))
+        assertFalse(isSaveSnapshotCurrent(7L, 4L, snapshot))
+        assertFalse(isSaveSnapshotCurrent(8L, 3L, snapshot))
+    }
+
+    @Test
+    fun `session-only content uri is not advertised as a recent document`() {
+        assertFalse(
+            shouldRecordRecentDocument(
+                uriScheme = "content",
+                hasDurableReadPermission = false,
+            ),
+        )
+        assertTrue(
+            shouldRecordRecentDocument(
+                uriScheme = "content",
+                hasDurableReadPermission = true,
+            ),
+        )
+        assertTrue(
+            shouldRecordRecentDocument(
+                uriScheme = "file",
+                hasDurableReadPermission = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `new work waits for recovery initialization and resolution`() {
+        assertFalse(
+            isNewWorkAllowed(
+                recoveryInitialized = false,
+                recoveryTransitioning = false,
+                recoverySaving = false,
+                hasOpenDocument = false,
+                documentSaving = false,
+                hasRecoverableWork = false,
+            ),
+        )
+        assertFalse(
+            isNewWorkAllowed(
+                recoveryInitialized = true,
+                recoveryTransitioning = false,
+                recoverySaving = false,
+                hasOpenDocument = false,
+                documentSaving = false,
+                hasRecoverableWork = true,
+            ),
+        )
+        assertTrue(
+            isNewWorkAllowed(
+                recoveryInitialized = true,
+                recoveryTransitioning = false,
+                recoverySaving = false,
+                hasOpenDocument = false,
+                documentSaving = false,
+                hasRecoverableWork = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `read permission does not mask a lost write grant`() {
+        val readOnly = DocumentPermission(
+            persistedFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION,
+        )
+
+        assertTrue(
+            hasRequiredUriPermission(
+                readOnly,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            ),
+        )
+        assertFalse(
+            hasRequiredUriPermission(
+                readOnly,
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            ),
+        )
+    }
+
+    @Test
+    fun `lifecycle flush still protects edits while a save is active`() {
+        assertTrue(
+            shouldFlushRecovery(
+                hasDocument = true,
+                isDirty = true,
+                documentSaving = true,
+                recoveryTransitioning = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `save result mailbox consumes only its current event once`() {
+        val first = PendingDocumentSaveResult(
+            eventId = 11L,
+            result = DocumentSaveResult.Failed(DocumentFailure.WRITE_FAILED),
+            sessionId = 7L,
+            contentRevision = 3L,
+        )
+        val second = PendingDocumentSaveResult(
+            eventId = 12L,
+            result = DocumentSaveResult.Saved,
+            sessionId = 7L,
+            contentRevision = 3L,
+        )
+        val pending = listOf(first, second)
+
+        assertEquals(pending, consumePendingSaveResult(pending, eventId = 99L))
+        assertEquals(listOf(second), consumePendingSaveResult(pending, eventId = first.eventId))
+        assertEquals(
+            listOf(second),
+            consumePendingSaveResult(listOf(second), eventId = first.eventId),
+        )
     }
 }

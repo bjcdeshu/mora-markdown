@@ -1,5 +1,6 @@
 package de.unbow.mora.ui
 
+import de.unbow.mora.model.canCompletePostSaveAction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -12,6 +13,51 @@ class DocumentRecreationStateTest {
         assertTrue(isSaveAsResultCurrent(requestSessionId = 42L, currentSessionId = 42L))
         assertFalse(isSaveAsResultCurrent(requestSessionId = 42L, currentSessionId = 43L))
         assertFalse(isSaveAsResultCurrent(requestSessionId = null, currentSessionId = 42L))
+    }
+
+    @Test
+    fun `attempted invalid shared text is consumed but a refused URI request is retained`() {
+        assertTrue(shouldConsumeAttemptedIncomingRequest(hasUri = false, accepted = false))
+        assertTrue(shouldConsumeAttemptedIncomingRequest(hasUri = true, accepted = true))
+        assertFalse(shouldConsumeAttemptedIncomingRequest(hasUri = true, accepted = false))
+    }
+
+    @Test
+    fun `save and close completes only for the exact requested revision`() {
+        assertTrue(
+            canCompletePostSaveAction(
+                requestedSessionId = 42L,
+                requestedContentRevision = 7L,
+                currentSessionId = 42L,
+                currentContentRevision = 7L,
+                currentIsDirty = false,
+                savedOriginal = true,
+            ),
+        )
+        assertFalse(
+            canCompletePostSaveAction(
+                requestedSessionId = 42L,
+                requestedContentRevision = 7L,
+                currentSessionId = 42L,
+                currentContentRevision = 8L,
+                currentIsDirty = true,
+                savedOriginal = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `verified save copy can close the exact dirty revision`() {
+        assertTrue(
+            canCompletePostSaveAction(
+                requestedSessionId = 42L,
+                requestedContentRevision = 7L,
+                currentSessionId = 42L,
+                currentContentRevision = 7L,
+                currentIsDirty = true,
+                savedOriginal = false,
+            ),
+        )
     }
 
     @Test

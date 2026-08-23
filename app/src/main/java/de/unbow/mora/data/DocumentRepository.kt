@@ -2,20 +2,24 @@ package de.unbow.mora.data
 
 import android.content.ContentResolver
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Process
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.OutputStream
 
 enum class DocumentFailure {
     READ_FAILED,
     WRITE_FAILED,
     SAVE_AS_REQUIRED,
+    FILE_TOO_LARGE,
+    MALFORMED_UTF8,
+    PERMISSION_LOST,
+    RECOVERY_FAILED,
+    VERIFICATION_FAILED,
 }
 
 class DocumentAccessException(
@@ -29,6 +33,8 @@ object DocumentRepository {
         val name: String?,
         val content: String,
         val canWrite: Boolean,
+        val hasUtf8Bom: Boolean,
+        val version: DocumentVersion,
     )
 
     suspend fun read(
@@ -37,15 +43,20 @@ object DocumentRepository {
     ): LoadedDocument = withContext(Dispatchers.IO) {
         try {
             val resolver = context.contentResolver
-            val content = resolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
-                it.readText()
-            }?.removePrefix("\uFEFF")
-                ?: throw DocumentAccessException(DocumentFailure.READ_FAILED)
+            val payload = DocumentPayloadCodec.decodeUtf8(
+                knownSizeBytes = queryDocumentSize(context, uri),
+                openInputStream = {
+                    resolver.openInputStream(uri)
+                        ?: throw DocumentAccessException(DocumentFailure.READ_FAILED)
+                },
+            )
 
             LoadedDocument(
                 name = queryDisplayName(context, uri),
-                content = content,
+                content = payload.content,
                 canWrite = canWrite(context, uri),
+                hasUtf8Bom = payload.hasUtf8Bom,
+                version = payload.version,
             )
         } catch (failure: DocumentAccessException) {
             throw failure
@@ -56,22 +67,21 @@ object DocumentRepository {
         }
     }
 
-    suspend fun write(context: Context, uri: Uri, content: String) = withContext(Dispatchers.IO) {
+    suspend fun write(
+        context: Context,
+        uri: Uri,
+        content: String,
+        includeUtf8Bom: Boolean = false,
+    ): DocumentVersion = withContext(Dispatchers.IO) {
         try {
             val resolver = context.contentResolver
-            val stream = try {
-                resolver.openOutputStream(uri, "rwt")
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                null
-            } ?: resolver.openOutputStream(uri, "wt")
-                ?: throw DocumentAccessException(DocumentFailure.WRITE_FAILED)
-
-            stream.bufferedWriter(Charsets.UTF_8).use { writer ->
-                writer.write(content)
-                writer.flush()
-            }
+            DocumentPayloadCodec.writeUtf8(
+                content = content,
+                includeUtf8Bom = includeUtf8Bom,
+                openOutputStream = {
+                    openWritableStream(resolver, uri)
+                },
+            )
         } catch (failure: DocumentAccessException) {
             throw failure
         } catch (cancelled: CancellationException) {
@@ -81,9 +91,55 @@ object DocumentRepository {
         }
     }
 
+    private fun openWritableStream(resolver: ContentResolver, uri: Uri): OutputStream {
+        val truncateExisting = try {
+            resolver.openOutputStream(uri, "rwt")
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+        return truncateExisting
+            ?: resolver.openOutputStream(uri, "wt")
+            ?: throw DocumentAccessException(DocumentFailure.WRITE_FAILED)
+    }
+
+    private fun queryDocumentSize(context: Context, uri: Uri): Long? {
+        if (uri.scheme == ContentResolver.SCHEME_FILE) {
+            return uri.path
+                ?.let(::File)
+                ?.takeIf(File::isFile)
+                ?.length()
+        }
+        if (uri.scheme != ContentResolver.SCHEME_CONTENT) return null
+
+        return runCatching {
+            context.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.SIZE),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val index = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (index < 0 || cursor.isNull(index)) {
+                    null
+                } else {
+                    cursor.getLong(index).takeIf { size -> size >= 0L }
+                }
+            }
+        }.getOrNull()
+    }
+
     suspend fun displayName(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
         queryDisplayName(context, uri)
     }
+
+    suspend fun supportsInPlaceWrite(context: Context, uri: Uri): Boolean =
+        withContext(Dispatchers.IO) {
+            canWrite(context, uri)
+        }
 
     private fun queryDisplayName(context: Context, uri: Uri): String? {
         return runCatching {
@@ -101,33 +157,35 @@ object DocumentRepository {
         }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/')
     }
 
-    fun persistPermission(context: Context, uri: Uri, grantedFlags: Int? = null) {
-        val resolver = context.contentResolver
-        val supportedFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-            Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        val requestedFlags = grantedFlags?.and(supportedFlags)
-            ?.takeIf { it != 0 }
-            ?: supportedFlags
-
-        try {
-            resolver.takePersistableUriPermission(uri, requestedFlags)
-        } catch (_: Exception) {
-            try {
-                resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (_: Exception) {
-                // 有些文档提供者不支持持久授权；当前会话仍可继续使用。
-            }
-        }
-    }
-
     private fun canWrite(context: Context, uri: Uri): Boolean {
         return when (uri.scheme) {
-            ContentResolver.SCHEME_CONTENT -> context.checkUriPermission(
-                uri,
-                Process.myPid(),
-                Process.myUid(),
-                Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-            ) == PackageManager.PERMISSION_GRANTED
+            ContentResolver.SCHEME_CONTENT -> {
+                if (!DocumentPermissionManager.current(context, uri).hasSessionWrite) {
+                    return false
+                }
+                val isDocumentUri = runCatching {
+                    DocumentsContract.isDocumentUri(context, uri)
+                }.getOrDefault(false)
+                if (!isDocumentUri) return true
+
+                runCatching {
+                    context.contentResolver.query(
+                        uri,
+                        arrayOf(DocumentsContract.Document.COLUMN_FLAGS),
+                        null,
+                        null,
+                        null,
+                    )?.use { cursor ->
+                        if (!cursor.moveToFirst()) return@use false
+                        val index = cursor.getColumnIndex(
+                            DocumentsContract.Document.COLUMN_FLAGS,
+                        )
+                        index >= 0 && !cursor.isNull(index) &&
+                            cursor.getInt(index) and
+                            DocumentsContract.Document.FLAG_SUPPORTS_WRITE != 0
+                    } ?: false
+                }.getOrDefault(false)
+            }
 
             ContentResolver.SCHEME_FILE -> uri.path
                 ?.let(::File)

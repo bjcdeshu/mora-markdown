@@ -19,20 +19,34 @@ Color tokens remain in `app/src/main/res/values/colors.xml`:
 - Night: `#0B1220`
 - Warm paper: `#F7F3EA`
 
+`social-preview-template.png` is the immutable input for the fixed 1280 × 640
+preview composition. The exporter copies that template, resets the launcher-mark
+slot, and draws the current SVG mark into the generated
+`docs/assets/social-preview.png`. Keeping the template separate prevents repeat
+exports from accumulating raster changes.
+
 From the repository root, use JDK 17 or newer to regenerate the Android vector
-resources and all legacy density PNGs:
+resources, all legacy density PNGs, and the social preview:
 
 ```powershell
 java tools/ExportMoraLauncherIcons.java
 ```
 
-The exporter reads the SVG path and Android color resources, writes identical
-foreground geometry for Indigo (Ink), Pine, Night, and monochrome, generates the
-legacy `mdpi` through `xxxhdpi` squircle/round PNGs, and updates the mark in the
-1280 × 640 social preview without changing its screenshots or typography.
-Adaptive icon XML and launcher aliases continue to reference the generated
-Android resources.
+To check every generated target without writing to the working tree, run:
 
-Do not edit generated VectorDrawable path data or PNGs independently. Change the
-SVG, rerun the exporter, then validate vector parity, PNG dimensions, adaptive
-safe-zone bounds, small-size appearance, and the full Android build gate.
+```powershell
+java tools/ExportMoraLauncherIcons.java --verify
+```
+
+Verification reports missing, stale, and unexpected generated targets and exits
+non-zero when regeneration is required. The exporter reads the SVG path, Android
+color resources, and immutable preview template; writes identical foreground
+geometry for Indigo (Ink), Pine, Night, and monochrome; and generates the legacy
+`mdpi` through `xxxhdpi` squircle/round PNGs. Adaptive icon XML and launcher
+aliases continue to reference the generated Android resources.
+
+Do not edit generated VectorDrawable path data, launcher PNGs, or
+`docs/assets/social-preview.png` independently. Change the SVG or the immutable
+preview template as appropriate, rerun the exporter once, then run `--verify` and
+validate vector parity, PNG dimensions, adaptive safe-zone bounds, small-size
+appearance, and the full Android build gate.

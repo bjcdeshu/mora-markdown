@@ -280,6 +280,7 @@ internal fun DocumentScreen(
                 EditorToolbar(
                     value = editorValue,
                     onValueChange = onEditorChanged,
+                    enabled = !saving,
                 )
             }
         },
@@ -315,6 +316,7 @@ internal fun DocumentScreen(
                         DocumentMode.EDITING -> MarkdownEditor(
                             value = editorValue,
                             onValueChange = onEditorChanged,
+                            enabled = !saving,
                         )
                     }
                 }

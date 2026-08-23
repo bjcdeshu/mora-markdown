@@ -6,15 +6,19 @@ import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
@@ -24,32 +28,41 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 /**
- * Deterministically exports Mora's launcher VectorDrawables and legacy PNGs
- * from docs/design/mora-icon-v0.3.3.svg.
+ * Deterministically exports or verifies Mora's generated launcher assets from
+ * docs/design/mora-icon-v0.3.3.svg.
  *
  * Run from the repository root with:
  *   java tools/ExportMoraLauncherIcons.java
+ *   java tools/ExportMoraLauncherIcons.java --verify
  */
 public final class ExportMoraLauncherIcons {
     private static final Path SVG_SOURCE =
             Path.of("docs", "design", "mora-icon-v0.3.3.svg");
     private static final Path COLORS_SOURCE =
             Path.of("app", "src", "main", "res", "values", "colors.xml");
+    private static final Path SOCIAL_PREVIEW_TEMPLATE =
+            Path.of("docs", "design", "social-preview-template.png");
     private static final Path SOCIAL_PREVIEW =
             Path.of("docs", "assets", "social-preview.png");
     private static final Path RES =
             Path.of("app", "src", "main", "res");
     private static final int VIEWPORT = 1024;
     private static final int SUPERSAMPLE = 4;
+    private static final int SOCIAL_PREVIEW_WIDTH = 1280;
+    private static final int SOCIAL_PREVIEW_HEIGHT = 640;
+    private static final int SOCIAL_MARK_SLOT_X = 68;
+    private static final int SOCIAL_MARK_SLOT_Y = 60;
+    private static final int SOCIAL_MARK_SLOT_WIDTH = 140;
+    private static final int SOCIAL_MARK_SLOT_HEIGHT = 116;
     private static final double ADAPTIVE_SAFE_MIN = 199.0;
     private static final double ADAPTIVE_SAFE_MAX = 825.0;
 
-    private static final Map<String, Integer> DENSITIES = Map.of(
-            "mdpi", 48,
-            "hdpi", 72,
-            "xhdpi", 96,
-            "xxhdpi", 144,
-            "xxxhdpi", 192);
+    private static final List<DensityTarget> DENSITIES = List.of(
+            new DensityTarget("mdpi", 48),
+            new DensityTarget("hdpi", 72),
+            new DensityTarget("xhdpi", 96),
+            new DensityTarget("xxhdpi", 144),
+            new DensityTarget("xxxhdpi", 192));
 
     private static final List<VectorTarget> VECTOR_TARGETS = List.of(
             new VectorTarget(
@@ -65,28 +78,98 @@ public final class ExportMoraLauncherIcons {
                     "ic_launcher_monochrome.xml",
                     "#FF000000"));
 
+    private static final List<LegacyIconTarget> LEGACY_ICON_TARGETS = List.of(
+            new LegacyIconTarget(
+                    "ic_launcher.png",
+                    "mora_icon_background",
+                    "mora_icon_foreground",
+                    false),
+            new LegacyIconTarget(
+                    "ic_launcher_pine.png",
+                    "mora_icon_pine_background",
+                    "mora_icon_pine_foreground",
+                    false),
+            new LegacyIconTarget(
+                    "ic_launcher_night.png",
+                    "mora_icon_night_background",
+                    "mora_icon_night_foreground",
+                    false),
+            new LegacyIconTarget(
+                    "ic_launcher_round.png",
+                    "mora_icon_background",
+                    "mora_icon_foreground",
+                    true));
+
     private ExportMoraLauncherIcons() {}
 
-    public static void main(String[] args) throws Exception {
-        ensureRepositoryRoot();
-        String pathData = readSvgPathData();
-        Path2D.Double mark = parsePath(pathData);
-        Map<String, Color> colors = readColors();
+    public static void main(String[] args) {
+        try {
+            Mode mode = parseMode(args);
+            ensureRepositoryRoot();
+            Map<Path, byte[]> expected = generateExpectedOutputs();
 
-        validateSourceGeometry(mark);
-        exportVectorDrawables(pathData);
-        exportLegacyPngs(mark, colors);
-        exportSocialPreview(mark, colors);
-        validateOutputs(pathData);
+            if (mode == Mode.VERIFY) {
+                VerificationResult result = compareOutputs(expected);
+                if (!result.isClean()) {
+                    throw new IllegalStateException(result.describe());
+                }
+                System.out.println(
+                        "Verified " + expected.size() + " generated Mora launcher assets.");
+                return;
+            }
 
-        System.out.println("Exported Mora launcher resources from " + SVG_SOURCE);
+            int updated = writeOutputs(expected);
+            VerificationResult result = compareOutputs(expected);
+            if (!result.isClean()) {
+                throw new IllegalStateException(result.describe());
+            }
+            System.out.println(
+                    "Exported "
+                            + expected.size()
+                            + " Mora launcher assets ("
+                            + updated
+                            + " updated).");
+        } catch (Exception error) {
+            String message = error.getMessage();
+            System.err.println(message == null ? error.getClass().getSimpleName() : message);
+            System.exit(1);
+        }
+    }
+
+    private static Mode parseMode(String[] args) {
+        if (args.length == 0) {
+            return Mode.EXPORT;
+        }
+        if (args.length == 1 && "--verify".equals(args[0])) {
+            return Mode.VERIFY;
+        }
+        throw new IllegalArgumentException(
+                "Usage: java tools/ExportMoraLauncherIcons.java [--verify]");
     }
 
     private static void ensureRepositoryRoot() {
-        if (!Files.isRegularFile(SVG_SOURCE) || !Files.isRegularFile(COLORS_SOURCE)) {
-            throw new IllegalStateException(
-                    "Run this exporter from the Mora repository root.");
+        for (Path source : List.of(
+                SVG_SOURCE,
+                COLORS_SOURCE,
+                SOCIAL_PREVIEW_TEMPLATE)) {
+            if (!Files.isRegularFile(source)) {
+                throw new IllegalStateException(
+                        "Run this exporter from the Mora repository root; missing " + source);
+            }
         }
+    }
+
+    private static Map<Path, byte[]> generateExpectedOutputs() throws Exception {
+        String pathData = readSvgPathData();
+        Path2D.Double mark = parsePath(pathData);
+        Map<String, Color> colors = readColors();
+        validateSourceGeometry(mark);
+
+        Map<Path, byte[]> outputs = new LinkedHashMap<>();
+        addVectorDrawables(outputs, pathData);
+        addLegacyPngs(outputs, mark, colors);
+        outputs.put(SOCIAL_PREVIEW, renderSocialPreview(mark, colors));
+        return outputs;
     }
 
     private static String readSvgPathData() throws Exception {
@@ -133,7 +216,9 @@ public final class ExportMoraLauncherIcons {
         return colors;
     }
 
-    private static void exportVectorDrawables(String pathData) throws IOException {
+    private static void addVectorDrawables(
+            Map<Path, byte[]> outputs,
+            String pathData) {
         Path drawable = RES.resolve("drawable");
         for (VectorTarget target : VECTOR_TARGETS) {
             String xml = """
@@ -149,10 +234,9 @@ public final class ExportMoraLauncherIcons {
                             android:pathData="%s" />
                     </vector>
                     """.formatted(target.fillColor(), pathData);
-            Files.writeString(
+            outputs.put(
                     drawable.resolve(target.fileName()),
-                    xml,
-                    StandardCharsets.UTF_8);
+                    xml.getBytes(StandardCharsets.UTF_8));
         }
     }
 
@@ -167,56 +251,67 @@ public final class ExportMoraLauncherIcons {
         }
     }
 
-    private static void exportLegacyPngs(
+    private static void addLegacyPngs(
+            Map<Path, byte[]> outputs,
             Path2D.Double mark,
             Map<String, Color> colors) throws IOException {
-        for (Map.Entry<String, Integer> density : DENSITIES.entrySet()) {
-            Path directory = RES.resolve("mipmap-" + density.getKey());
-            Files.createDirectories(directory);
-            writeIcon(
-                    directory.resolve("ic_launcher.png"),
-                    density.getValue(),
-                    mark,
-                    colors.get("mora_icon_background"),
-                    colors.get("mora_icon_foreground"),
-                    false);
-            writeIcon(
-                    directory.resolve("ic_launcher_pine.png"),
-                    density.getValue(),
-                    mark,
-                    colors.get("mora_icon_pine_background"),
-                    colors.get("mora_icon_pine_foreground"),
-                    false);
-            writeIcon(
-                    directory.resolve("ic_launcher_night.png"),
-                    density.getValue(),
-                    mark,
-                    colors.get("mora_icon_night_background"),
-                    colors.get("mora_icon_night_foreground"),
-                    false);
-            writeIcon(
-                    directory.resolve("ic_launcher_round.png"),
-                    density.getValue(),
-                    mark,
-                    colors.get("mora_icon_background"),
-                    colors.get("mora_icon_foreground"),
-                    true);
+        for (DensityTarget density : DENSITIES) {
+            Path directory = RES.resolve("mipmap-" + density.name());
+            for (LegacyIconTarget icon : LEGACY_ICON_TARGETS) {
+                Path output = directory.resolve(icon.fileName());
+                outputs.put(
+                        output,
+                        renderIcon(
+                                output,
+                                density.size(),
+                                mark,
+                                colors.get(icon.backgroundColor()),
+                                colors.get(icon.foregroundColor()),
+                                icon.round()));
+            }
         }
     }
 
-    private static void exportSocialPreview(
+    private static byte[] renderSocialPreview(
             Path2D.Double mark,
             Map<String, Color> colors) throws IOException {
-        BufferedImage image = ImageIO.read(SOCIAL_PREVIEW.toFile());
-        if (image == null || image.getWidth() != 1280 || image.getHeight() != 640) {
+        BufferedImage template = ImageIO.read(SOCIAL_PREVIEW_TEMPLATE.toFile());
+        if (template == null
+                || template.getWidth() != SOCIAL_PREVIEW_WIDTH
+                || template.getHeight() != SOCIAL_PREVIEW_HEIGHT) {
             throw new IllegalStateException(
-                    "Unexpected social-preview dimensions: " + SOCIAL_PREVIEW);
+                    "Unexpected social-preview template dimensions: "
+                            + SOCIAL_PREVIEW_TEMPLATE);
         }
+
+        BufferedImage image = new BufferedImage(
+                SOCIAL_PREVIEW_WIDTH,
+                SOCIAL_PREVIEW_HEIGHT,
+                BufferedImage.TYPE_INT_ARGB);
+        image.setRGB(
+                0,
+                0,
+                SOCIAL_PREVIEW_WIDTH,
+                SOCIAL_PREVIEW_HEIGHT,
+                template.getRGB(
+                        0,
+                        0,
+                        SOCIAL_PREVIEW_WIDTH,
+                        SOCIAL_PREVIEW_HEIGHT,
+                        null,
+                        0,
+                        SOCIAL_PREVIEW_WIDTH),
+                0,
+                SOCIAL_PREVIEW_WIDTH);
 
         Graphics2D graphics = image.createGraphics();
         applyQualityHints(graphics);
         graphics.setColor(colors.get("mora_icon_background"));
-        graphics.fillRect(68, 60, 140, 116);
+        graphics.fillRect(
+                SOCIAL_MARK_SLOT_X,
+                SOCIAL_MARK_SLOT_Y,
+                SOCIAL_MARK_SLOT_WIDTH,
+                SOCIAL_MARK_SLOT_HEIGHT);
 
         Rectangle2D bounds = mark.getBounds2D();
         double scale = 100.0 / bounds.getWidth();
@@ -228,12 +323,10 @@ public final class ExportMoraLauncherIcons {
         graphics.fill(transform.createTransformedShape(mark));
         graphics.dispose();
 
-        if (!ImageIO.write(image, "png", SOCIAL_PREVIEW.toFile())) {
-            throw new IOException("PNG writer unavailable for " + SOCIAL_PREVIEW);
-        }
+        return encodePng(image, SOCIAL_PREVIEW);
     }
 
-    private static void writeIcon(
+    private static byte[] renderIcon(
             Path output,
             int size,
             Path2D.Double mark,
@@ -274,9 +367,15 @@ public final class ExportMoraLauncherIcons {
         outputGraphics.drawImage(large, 0, 0, size, size, null);
         outputGraphics.dispose();
 
-        if (!ImageIO.write(outputImage, "png", output.toFile())) {
+        return encodePng(outputImage, output);
+    }
+
+    private static byte[] encodePng(BufferedImage image, Path output) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        if (!ImageIO.write(image, "png", bytes)) {
             throw new IOException("PNG writer unavailable for " + output);
         }
+        return bytes.toByteArray();
     }
 
     private static void applyQualityHints(Graphics2D graphics) {
@@ -407,38 +506,128 @@ public final class ExportMoraLauncherIcons {
         return Double.parseDouble(tokens.get(index));
     }
 
-    private static void validateOutputs(String pathData) throws Exception {
-        String canonical = normalizePathData(pathData);
-        for (VectorTarget target : VECTOR_TARGETS) {
-            Path output = RES.resolve("drawable").resolve(target.fileName());
-            String xml = Files.readString(output, StandardCharsets.UTF_8);
-            Matcher matcher = Pattern.compile("android:pathData=\"([^\"]+)\"")
-                    .matcher(xml);
-            if (!matcher.find() || !canonical.equals(normalizePathData(matcher.group(1)))) {
-                throw new IllegalStateException(
-                        "Vector path mismatch: " + output);
+    private static int writeOutputs(Map<Path, byte[]> expected) throws IOException {
+        int updated = 0;
+        for (Map.Entry<Path, byte[]> output : expected.entrySet()) {
+            Path path = output.getKey();
+            byte[] bytes = output.getValue();
+            if (Files.isRegularFile(path)
+                    && Arrays.equals(Files.readAllBytes(path), bytes)) {
+                continue;
+            }
+            Files.createDirectories(path.getParent());
+            Files.write(path, bytes);
+            updated++;
+        }
+        return updated;
+    }
+
+    private static VerificationResult compareOutputs(Map<Path, byte[]> expected)
+            throws IOException {
+        List<Path> missing = new ArrayList<>();
+        List<Path> stale = new ArrayList<>();
+
+        for (Map.Entry<Path, byte[]> output : expected.entrySet()) {
+            Path path = output.getKey();
+            if (!Files.isRegularFile(path)) {
+                missing.add(path);
+            } else if (!Arrays.equals(Files.readAllBytes(path), output.getValue())) {
+                stale.add(path);
             }
         }
 
-        for (Map.Entry<String, Integer> density : DENSITIES.entrySet()) {
-            Path directory = RES.resolve("mipmap-" + density.getKey());
-            for (String name : List.of(
-                    "ic_launcher.png",
-                    "ic_launcher_pine.png",
-                    "ic_launcher_night.png",
-                    "ic_launcher_round.png")) {
-                Path output = directory.resolve(name);
-                BufferedImage image = ImageIO.read(output.toFile());
-                if (image == null
-                        || image.getWidth() != density.getValue()
-                        || image.getHeight() != density.getValue()
-                        || image.getColorModel().getNumComponents() != 4) {
-                    throw new IllegalStateException(
-                            "Invalid generated PNG: " + output);
+        Set<Path> unexpected = findGeneratedCandidates();
+        unexpected.removeAll(expected.keySet());
+        return new VerificationResult(missing, stale, new ArrayList<>(unexpected));
+    }
+
+    private static Set<Path> findGeneratedCandidates() throws IOException {
+        Set<Path> candidates = new TreeSet<>();
+        Path drawable = RES.resolve("drawable");
+        if (Files.isDirectory(drawable)) {
+            try (DirectoryStream<Path> entries = Files.newDirectoryStream(drawable)) {
+                for (Path entry : entries) {
+                    String name = entry.getFileName().toString();
+                    if (Files.isRegularFile(entry)
+                            && name.endsWith(".xml")
+                            && (name.startsWith("ic_launcher_foreground")
+                                    || name.startsWith("ic_launcher_monochrome"))) {
+                        candidates.add(entry);
+                    }
                 }
             }
         }
+
+        if (Files.isDirectory(RES)) {
+            try (DirectoryStream<Path> directories =
+                    Files.newDirectoryStream(RES, "mipmap-*")) {
+                for (Path directory : directories) {
+                    if (!Files.isDirectory(directory)) {
+                        continue;
+                    }
+                    try (DirectoryStream<Path> entries =
+                            Files.newDirectoryStream(directory, "ic_launcher*.png")) {
+                        for (Path entry : entries) {
+                            if (Files.isRegularFile(entry)) {
+                                candidates.add(entry);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (Files.exists(SOCIAL_PREVIEW)) {
+            candidates.add(SOCIAL_PREVIEW);
+        }
+        return candidates;
     }
 
+    private enum Mode {
+        EXPORT,
+        VERIFY
+    }
+
+    private record DensityTarget(String name, int size) {}
+
     private record VectorTarget(String fileName, String fillColor) {}
+
+    private record LegacyIconTarget(
+            String fileName,
+            String backgroundColor,
+            String foregroundColor,
+            boolean round) {}
+
+    private record VerificationResult(
+            List<Path> missing,
+            List<Path> stale,
+            List<Path> unexpected) {
+        boolean isClean() {
+            return missing.isEmpty() && stale.isEmpty() && unexpected.isEmpty();
+        }
+
+        String describe() {
+            StringBuilder message = new StringBuilder(
+                    "Generated Mora launcher assets are not current:");
+            append(message, "missing", missing);
+            append(message, "stale", stale);
+            append(message, "unexpected", unexpected);
+            message.append(System.lineSeparator())
+                    .append("Run `java tools/ExportMoraLauncherIcons.java` to regenerate.");
+            return message.toString();
+        }
+
+        private static void append(
+                StringBuilder message,
+                String label,
+                List<Path> paths) {
+            paths.stream()
+                    .sorted()
+                    .forEach(path -> message.append(System.lineSeparator())
+                            .append("  ")
+                            .append(label)
+                            .append(": ")
+                            .append(path));
+        }
+    }
 }

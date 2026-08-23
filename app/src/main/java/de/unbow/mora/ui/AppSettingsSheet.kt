@@ -207,6 +207,12 @@ internal fun AppSettingsSheet(
                 state = languageSettingsState,
                 onClick = ::openLanguageSettings,
             )
+
+            HorizontalDivider(Modifier.padding(vertical = 20.dp))
+
+            SettingsSectionTitle(stringResource(R.string.settings_about))
+            Spacer(Modifier.height(8.dp))
+            AppAboutCard(appSettings = appSettings)
             Spacer(Modifier.height(20.dp))
         }
     }
