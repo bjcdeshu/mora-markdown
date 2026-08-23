@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performClick
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
+import androidx.test.espresso.Espresso.pressBack
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
@@ -469,7 +470,8 @@ class MoraAppSaveFlowRecreationTest {
         composeRule.activityRule.scenario.recreate()
         assertTrue(onMain { viewModel.uiState.isSaving })
         waitForText(label(R.string.save_failed_title))
-        composeRule.onNodeWithText(label(R.string.cancel)).performClick()
+        composeRule.onNodeWithText(label(R.string.retry)).assertIsDisplayed()
+        pressBack()
         waitForTextToDisappear(label(R.string.save_failed_title))
 
         val cancelledState = onMain { viewModel.uiState }
