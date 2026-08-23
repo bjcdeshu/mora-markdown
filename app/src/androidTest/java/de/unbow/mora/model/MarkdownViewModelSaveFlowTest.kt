@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.provider.DocumentsContract
+import android.view.KeyEvent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -16,7 +17,6 @@ import androidx.compose.ui.test.performClick
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
-import androidx.test.espresso.Espresso.pressBack
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
@@ -471,7 +471,7 @@ class MoraAppSaveFlowRecreationTest {
         assertTrue(onMain { viewModel.uiState.isSaving })
         waitForText(label(R.string.save_failed_title))
         composeRule.onNodeWithText(label(R.string.retry)).assertIsDisplayed()
-        pressBack()
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         waitForTextToDisappear(label(R.string.save_failed_title))
 
         val cancelledState = onMain { viewModel.uiState }
