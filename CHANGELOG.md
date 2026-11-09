@@ -4,6 +4,25 @@ All notable changes to Mora are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-09
+
+Feature, typography, and brand-identity polish for the stable v0.4 release.
+
+### Added
+
+- Redesigned Mora's launcher mark with the multi-plane **Origami Page M** (`双切面折页书签`) icon across adaptive, round, legacy density PNGs, Android 13+ monochrome themed icons, all three launcher palettes (Indigo, Pine, Night), and the in-app Home header badge.
+- Added curated **Mora Ink & Warm-Paper** light/dark color schemes and an explicit **Color palette** setting on Android 12+ (`Mora ink & paper` vs. `System dynamic color`).
+- Added **Font family** (`Sans-serif` / `Serif`), **Reading surface** (`Default` / `Warm paper` `#F6F1E6`), and explicit `sp` font-size labels in Reader Appearance.
+- Added fenced code block headers with language badges, one-tap `Copy` / `Copied` buttons (`MoraJsBridge`), and lightweight offline syntax highlighting.
+- Added click-to-zoom fullscreen lightbox preview (`#mora-lightbox`) for Markdown images and subtle alternating row striping for GFM tables.
+- Added a floating section + percentage progress pill (`Heading · 64%`) while dragging the right-edge reading-position thumb.
+- Added **Reader-to-Editor position sync** (switching from Reading to Editing jumps to the active heading or proportional offset) and **Undo / Redo** history actions in the editor top bar.
+- Added an **Undo** snackbar when removing an item from Recent Documents while preserving persisted URI permissions unless removal is finalized.
+
+### Migration
+
+- v0.4.0 keeps Mora's package (`de.unbow.mora`) and signing identity and increments `versionCode` to 9 for an in-place update from v0.3.3 or v0.4.0-rc.1.
+
 ## [0.4.0-rc.1] - 2026-08-23
 
 First public test candidate for Mora's v0.4 storage-reliability work.

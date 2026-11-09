@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
@@ -44,7 +45,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -97,15 +101,16 @@ internal fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Surface(
-                        modifier = Modifier.size(44.dp),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(42.dp),
+                        shape = RoundedCornerShape(13.dp),
+                        color = colorResource(R.color.mora_icon_background),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Outlined.Description,
+                                painter = painterResource(R.drawable.ic_launcher_foreground),
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(34.dp),
+                                tint = Color.Unspecified,
                             )
                         }
                     }
@@ -303,11 +308,11 @@ internal fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    FilledTonalButton(
+                    Button(
                         onClick = { if (documentActionsEnabled) onOpenFile() },
                         enabled = documentActionsEnabled,
                         modifier = Modifier
-                            .weight(1f)
+                            .weight(1.25f)
                             .heightIn(min = 54.dp)
                             .focusProperties { canFocus = documentActionsEnabled },
                         shape = RoundedCornerShape(18.dp),

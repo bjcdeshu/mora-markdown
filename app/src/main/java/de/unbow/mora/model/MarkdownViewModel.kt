@@ -1080,8 +1080,26 @@ class MarkdownViewModel : ViewModel() {
         recentDocuments = RecentDocumentsRepository.updatePosition(context, uri, scrollY)
     }
 
-    fun removeRecent(context: Context, document: RecentDocument) {
+    fun removeRecent(
+        context: Context,
+        document: RecentDocument,
+        releasePermissionImmediately: Boolean = true,
+    ) {
         recentDocuments = RecentDocumentsRepository.remove(context, document.uri)
+        if (releasePermissionImmediately) {
+            releasePermissionIfUnused(
+                context.applicationContext,
+                document.uri,
+                document.managedPermissionFlags,
+            )
+        }
+    }
+
+    fun restoreRecent(context: Context, document: RecentDocument) {
+        recentDocuments = RecentDocumentsRepository.restore(context, document)
+    }
+
+    fun finalizeRemovedRecentPermission(context: Context, document: RecentDocument) {
         releasePermissionIfUnused(
             context.applicationContext,
             document.uri,

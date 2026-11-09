@@ -25,25 +25,35 @@ import de.unbow.mora.data.DarkSurfaceStyle
 import de.unbow.mora.data.ThemeMode
 
 private val FallbackLight = lightColorScheme(
-    primary = Color(0xFF5D5B92),
+    primary = Color(0xFF2B4162),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFE4E0FF),
-    onPrimaryContainer = Color(0xFF19174A),
-    secondaryContainer = Color(0xFFE2E0F9),
-    surface = Color(0xFFFBF8FF),
-    surfaceContainer = Color(0xFFF0EDF6),
-    surfaceContainerHigh = Color(0xFFEAE7F0),
+    primaryContainer = Color(0xFFDCE4F2),
+    onPrimaryContainer = Color(0xFF101D30),
+    secondaryContainer = Color(0xFFE6ECF5),
+    onSecondaryContainer = Color(0xFF1B2A40),
+    surface = Color(0xFFFAF8F5),
+    onSurface = Color(0xFF1B1F24),
+    onSurfaceVariant = Color(0xFF525A65),
+    surfaceContainerLow = Color(0xFFF3F0EA),
+    surfaceContainer = Color(0xFFEDE9E1),
+    surfaceContainerHigh = Color(0xFFE5DFD5),
+    outlineVariant = Color(0xFFD5CFC4),
 )
 
 private val FallbackDark = darkColorScheme(
-    primary = Color(0xFFC6C2FF),
-    onPrimary = Color(0xFF2E2C60),
-    primaryContainer = Color(0xFF454477),
-    onPrimaryContainer = Color(0xFFE4E0FF),
-    secondaryContainer = Color(0xFF454559),
-    surface = Color(0xFF131318),
-    surfaceContainer = Color(0xFF201F25),
-    surfaceContainerHigh = Color(0xFF2B292F),
+    primary = Color(0xFFAAC4E8),
+    onPrimary = Color(0xFF122742),
+    primaryContainer = Color(0xFF263D5C),
+    onPrimaryContainer = Color(0xFFDCE4F2),
+    secondaryContainer = Color(0xFF283548),
+    onSecondaryContainer = Color(0xFFD7E2F0),
+    surface = Color(0xFF12151A),
+    onSurface = Color(0xFFE5E8EE),
+    onSurfaceVariant = Color(0xFFA0A8B4),
+    surfaceContainerLow = Color(0xFF181C22),
+    surfaceContainer = Color(0xFF1E232B),
+    surfaceContainerHigh = Color(0xFF262C36),
+    outlineVariant = Color(0xFF333B48),
 )
 
 private val LocalMoraIsDarkProvider = staticCompositionLocalOf { false }
@@ -51,10 +61,16 @@ private val LocalMoraIsDarkProvider = staticCompositionLocalOf { false }
 val LocalMoraIsDark: CompositionLocal<Boolean>
     get() = LocalMoraIsDarkProvider
 
+internal fun shouldUseDynamicColor(
+    sdkInt: Int,
+    useDynamicColor: Boolean,
+): Boolean = sdkInt >= Build.VERSION_CODES.S && useDynamicColor
+
 @Composable
 fun MoraTheme(
     themeMode: ThemeMode,
     darkSurfaceStyle: DarkSurfaceStyle,
+    useDynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val effectiveDark = resolveEffectiveDark(
@@ -63,14 +79,21 @@ fun MoraTheme(
     )
     val context = LocalContext.current
     val view = LocalView.current
+    val dynamicEnabled = shouldUseDynamicColor(
+        sdkInt = Build.VERSION.SDK_INT,
+        useDynamicColor = useDynamicColor,
+    )
 
-    val baseColors = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && effectiveDark ->
+    val baseColors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && dynamicEnabled) {
+        if (effectiveDark) {
             dynamicDarkColorScheme(context)
-
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> dynamicLightColorScheme(context)
-        effectiveDark -> FallbackDark
-        else -> FallbackLight
+        } else {
+            dynamicLightColorScheme(context)
+        }
+    } else if (effectiveDark) {
+        FallbackDark
+    } else {
+        FallbackLight
     }
     val colors = applyDarkSurfaceStyle(
         colorScheme = baseColors,

@@ -89,4 +89,12 @@ class MoraThemeTest {
         assertNull(legacyNavigationBarColor(sdkInt = 29, surfaceColor = effectiveSurface))
         assertNull(legacyNavigationBarColor(sdkInt = 36, surfaceColor = effectiveSurface))
     }
+
+    @Test
+    fun dynamicColorRequiresAndroidSAndExplicitOptIn() {
+        assertFalse(shouldUseDynamicColor(sdkInt = 30, useDynamicColor = true))
+        assertFalse(shouldUseDynamicColor(sdkInt = 34, useDynamicColor = false))
+        assertTrue(shouldUseDynamicColor(sdkInt = 31, useDynamicColor = true))
+        assertTrue(shouldUseDynamicColor(sdkInt = 35, useDynamicColor = true))
+    }
 }

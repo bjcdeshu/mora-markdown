@@ -34,6 +34,7 @@ class AppSettingsRepositoryTest {
             themeMode = ThemeMode.LIGHT,
             darkSurfaceStyle = DarkSurfaceStyle.PURE_BLACK,
             launcherIcon = LauncherIcon.PINE,
+            useDynamicColor = true,
         )
 
         repository.save(expected)

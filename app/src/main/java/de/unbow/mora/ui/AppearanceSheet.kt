@@ -9,9 +9,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -21,9 +24,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import de.unbow.mora.R
+import de.unbow.mora.markdown.ReaderFontFamily
+import de.unbow.mora.markdown.ReaderSurfaceTone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,9 +37,13 @@ internal fun AppearanceSheet(
     fontSize: Float,
     lineHeight: Float,
     horizontalPadding: Float,
+    fontFamily: ReaderFontFamily,
+    surfaceTone: ReaderSurfaceTone,
     onFontSizeChanged: (Float) -> Unit,
     onLineHeightChanged: (Float) -> Unit,
     onHorizontalPaddingChanged: (Float) -> Unit,
+    onFontFamilyChanged: (ReaderFontFamily) -> Unit,
+    onSurfaceToneChanged: (ReaderSurfaceTone) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -50,13 +60,76 @@ internal fun AppearanceSheet(
         ) {
             Text(
                 text = stringResource(R.string.reading_typography),
-                style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
+
+            Text(
+                text = stringResource(R.string.reading_font_family),
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                FilterChip(
+                    selected = fontFamily == ReaderFontFamily.SANS,
+                    onClick = { onFontFamilyChanged(ReaderFontFamily.SANS) },
+                    label = {
+                        Text(
+                            text = stringResource(R.string.font_family_sans),
+                            fontFamily = FontFamily.SansSerif,
+                        )
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                )
+                FilterChip(
+                    selected = fontFamily == ReaderFontFamily.SERIF,
+                    onClick = { onFontFamilyChanged(ReaderFontFamily.SERIF) },
+                    label = {
+                        Text(
+                            text = stringResource(R.string.font_family_serif),
+                            fontFamily = FontFamily.Serif,
+                        )
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = stringResource(R.string.reading_surface_tone),
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                FilterChip(
+                    selected = surfaceTone == ReaderSurfaceTone.DEFAULT,
+                    onClick = { onSurfaceToneChanged(ReaderSurfaceTone.DEFAULT) },
+                    label = { Text(stringResource(R.string.surface_tone_default)) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                )
+                FilterChip(
+                    selected = surfaceTone == ReaderSurfaceTone.WARM_PAPER,
+                    onClick = { onSurfaceToneChanged(ReaderSurfaceTone.WARM_PAPER) },
+                    label = { Text(stringResource(R.string.surface_tone_warm_paper)) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                )
+            }
+
+            Spacer(Modifier.height(20.dp))
             SettingSlider(
                 title = stringResource(R.string.body_font_size),
-                valueLabel = stringResource(R.string.pixels_value, fontSize.toInt()),
+                valueLabel = stringResource(R.string.sp_value, fontSize.toInt()),
                 value = fontSize,
                 range = 15f..21f,
                 steps = 5,
@@ -109,8 +182,8 @@ private fun SettingSlider(
         )
         Text(
             valueLabel,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
     Slider(

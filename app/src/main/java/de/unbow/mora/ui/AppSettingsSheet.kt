@@ -163,6 +163,32 @@ internal fun AppSettingsSheet(
                 }
             }
 
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    text = stringResource(R.string.color_palette),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                )
+                Spacer(Modifier.height(6.dp))
+                Column(Modifier.selectableGroup()) {
+                    SettingsChoiceRow(
+                        label = stringResource(R.string.color_palette_mora),
+                        selected = !appSettings.useDynamicColor,
+                        onClick = {
+                            onAppSettingsChanged(appSettings.copy(useDynamicColor = false))
+                        },
+                    )
+                    SettingsChoiceRow(
+                        label = stringResource(R.string.color_palette_dynamic),
+                        selected = appSettings.useDynamicColor,
+                        onClick = {
+                            onAppSettingsChanged(appSettings.copy(useDynamicColor = true))
+                        },
+                    )
+                }
+            }
+
             HorizontalDivider(Modifier.padding(vertical = 20.dp))
 
             SettingsSectionTitle(stringResource(R.string.settings_launcher_icon))

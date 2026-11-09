@@ -25,11 +25,18 @@
     </plurals>
 
     <string name="reading_typography">Reading typography</string>
+    <string name="reading_font_family">Typeface</string>
+    <string name="font_family_sans">Sans-serif</string>
+    <string name="font_family_serif">Serif</string>
+    <string name="reading_surface_tone">Reading surface</string>
+    <string name="surface_tone_default">Standard</string>
+    <string name="surface_tone_warm_paper">Warm paper</string>
     <string name="body_font_size">Body text size</string>
     <string name="line_height">Line height</string>
     <string name="page_margins">Page margins</string>
     <string name="restore_defaults">Restore defaults</string>
     <string name="pixels_value" translatable="false">%1$d px</string>
+    <string name="sp_value" translatable="false">%1$d sp</string>
     <string name="decimal_value" translatable="false">%1$.2f</string>
 
     <string name="settings_theme">Theme</string>
@@ -40,6 +47,9 @@
     <string name="dark_background_dark_only">Applies only in dark mode</string>
     <string name="dark_background_default">Default</string>
     <string name="dark_background_pure_black">Pure black</string>
+    <string name="color_palette">Color palette</string>
+    <string name="color_palette_mora">Mora calm palette</string>
+    <string name="color_palette_dynamic">Follow system wallpaper</string>
     <string name="settings_launcher_icon">Launcher icon</string>
     <string name="launcher_icon_indigo">Indigo</string>
     <string name="launcher_icon_pine">Pine</string>
@@ -90,6 +100,12 @@
     <string name="read_document">Read</string>
     <string name="save_document">Save</string>
     <string name="saving_document">Saving</string>
+    <string name="undo_edit">Undo</string>
+    <string name="redo_edit">Redo</string>
+    <string name="copy_code">Copy</string>
+    <string name="code_copied">Copied</string>
+    <string name="recent_document_removed">Removed from recent documents</string>
+    <string name="undo_action">Undo</string>
     <string name="table_of_contents">Table of contents</string>
     <string name="search_document">Search</string>
     <string name="edit_document">Edit</string>

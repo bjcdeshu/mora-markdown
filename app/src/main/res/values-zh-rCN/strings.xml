@@ -21,6 +21,12 @@
     </plurals>
 
     <string name="reading_typography">阅读排版</string>
+    <string name="reading_font_family">正文字体</string>
+    <string name="font_family_sans">无衬线</string>
+    <string name="font_family_serif">衬线</string>
+    <string name="reading_surface_tone">阅读底色</string>
+    <string name="surface_tone_default">标准</string>
+    <string name="surface_tone_warm_paper">暖纸</string>
     <string name="body_font_size">正文字号</string>
     <string name="line_height">行高</string>
     <string name="page_margins">页面边距</string>
@@ -34,6 +40,9 @@
     <string name="dark_background_dark_only">仅在深色模式中生效</string>
     <string name="dark_background_default">默认</string>
     <string name="dark_background_pure_black">纯黑</string>
+    <string name="color_palette">配色方案</string>
+    <string name="color_palette_mora">Mora 沉静本色</string>
+    <string name="color_palette_dynamic">跟随系统壁纸</string>
     <string name="settings_launcher_icon">启动器图标</string>
     <string name="launcher_icon_indigo">靛蓝</string>
     <string name="launcher_icon_pine">松绿</string>
@@ -84,6 +93,12 @@
     <string name="read_document">阅读</string>
     <string name="save_document">保存</string>
     <string name="saving_document">正在保存</string>
+    <string name="undo_edit">撤销</string>
+    <string name="redo_edit">重做</string>
+    <string name="copy_code">复制</string>
+    <string name="code_copied">已复制</string>
+    <string name="recent_document_removed">已从最近文档移除</string>
+    <string name="undo_action">撤销</string>
     <string name="table_of_contents">目录</string>
     <string name="search_document">搜索</string>
     <string name="edit_document">编辑</string>

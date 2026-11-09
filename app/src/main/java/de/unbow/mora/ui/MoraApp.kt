@@ -16,6 +16,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -141,6 +142,8 @@ fun MoraApp(
     val readOnlyNotice = stringResource(R.string.read_only_document_notice)
     val languageSettingsUnavailable = stringResource(R.string.language_settings_unavailable)
     val launcherIconChangeFailed = stringResource(R.string.launcher_icon_change_failed)
+    val recentDocumentRemovedMessage = stringResource(R.string.recent_document_removed)
+    val undoActionLabel = stringResource(R.string.undo_action)
     val displayedDocumentName = displayDocumentName(
         storedName = state.name,
         usesLocalizedFallback = state.nameUsesLocalizedFallback,
@@ -170,6 +173,12 @@ fun MoraApp(
     }
     var horizontalPadding by rememberSaveable {
         mutableFloatStateOf(storedReaderPreferences.horizontalPaddingPx)
+    }
+    var fontFamily by rememberSaveable {
+        mutableStateOf(storedReaderPreferences.fontFamily)
+    }
+    var surfaceTone by rememberSaveable {
+        mutableStateOf(storedReaderPreferences.surfaceTone)
     }
     var readerScrollSessionId by rememberSaveable {
         mutableLongStateOf(Long.MIN_VALUE)
@@ -219,6 +228,8 @@ fun MoraApp(
         fontSizePx = fontSize,
         lineHeight = lineHeight,
         horizontalPaddingPx = horizontalPadding,
+        fontFamily = fontFamily,
+        surfaceTone = surfaceTone,
     )
 
     fun persistReaderPreferences() {
@@ -595,7 +606,29 @@ fun MoraApp(
                 openDocument(document.uri)
             },
             onRemoveRecent = { document ->
-                markdownViewModel.removeRecent(context, document)
+                markdownViewModel.removeRecent(
+                    context = context,
+                    document = document,
+                    releasePermissionImmediately = false,
+                )
+                scope.launch {
+                    var restored = false
+                    try {
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        val result = snackbarHostState.showSnackbar(
+                            message = recentDocumentRemovedMessage,
+                            actionLabel = undoActionLabel,
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            restored = true
+                            markdownViewModel.restoreRecent(context, document)
+                        }
+                    } finally {
+                        if (!restored) {
+                            markdownViewModel.finalizeRemovedRecentPermission(context, document)
+                        }
+                    }
+                }
             },
             onSettings = {
                 showReaderAppearance = false
@@ -763,6 +796,8 @@ fun MoraApp(
             fontSize = fontSize,
             lineHeight = lineHeight,
             horizontalPadding = horizontalPadding,
+            fontFamily = fontFamily,
+            surfaceTone = surfaceTone,
             onFontSizeChanged = {
                 fontSize = it
                 persistReaderPreferences()
@@ -775,10 +810,20 @@ fun MoraApp(
                 horizontalPadding = it
                 persistReaderPreferences()
             },
+            onFontFamilyChanged = {
+                fontFamily = it
+                persistReaderPreferences()
+            },
+            onSurfaceToneChanged = {
+                surfaceTone = it
+                persistReaderPreferences()
+            },
             onReset = {
                 fontSize = ReaderPreferences.Default.fontSizePx
                 lineHeight = ReaderPreferences.Default.lineHeight
                 horizontalPadding = ReaderPreferences.Default.horizontalPaddingPx
+                fontFamily = ReaderPreferences.Default.fontFamily
+                surfaceTone = ReaderPreferences.Default.surfaceTone
                 persistReaderPreferences()
             },
             onDismiss = { showReaderAppearance = false },

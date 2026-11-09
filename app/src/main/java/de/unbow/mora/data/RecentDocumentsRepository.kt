@@ -190,6 +190,15 @@ object RecentDocumentsRepository {
         return updated
     }
 
+    fun restore(context: Context, document: RecentDocument): List<RecentDocument> {
+        val existing = load(context).filterNot { it.uri == document.uri }
+        val updated = (existing + document)
+            .sortedByDescending(RecentDocument::lastOpenedAt)
+            .take(maximumDocuments)
+        save(context, updated)
+        return updated
+    }
+
     private fun save(context: Context, documents: List<RecentDocument>) {
         val array = JSONArray()
         documents.take(maximumDocuments).forEach { document ->

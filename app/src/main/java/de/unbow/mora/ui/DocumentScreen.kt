@@ -30,6 +30,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.Redo
+import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
@@ -56,6 +58,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -69,6 +73,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -91,6 +96,8 @@ private data class ReaderRenderRequest(
     val preferences: ReaderPreferences,
     val effectiveDark: Boolean,
     val untitledHeading: String,
+    val copyLabel: String,
+    val copiedLabel: String,
 )
 
 internal fun shouldHideImmersiveStatusBar(
@@ -130,6 +137,8 @@ internal fun DocumentScreen(
     onSave: () -> Unit,
     onEditorChanged: (TextFieldValue) -> Unit,
 ) {
+    val copyLabel = stringResource(R.string.copy_code)
+    val copiedLabel = stringResource(R.string.code_copied)
     var cachedRenderedMarkdown by remember(documentKey) {
         mutableStateOf<RenderedMarkdown?>(null)
     }
@@ -142,6 +151,8 @@ internal fun DocumentScreen(
         preferences,
         effectiveDark,
         untitledHeading,
+        copyLabel,
+        copiedLabel,
     ) {
         ReaderRenderRequest(
             markdown = markdown,
@@ -149,6 +160,8 @@ internal fun DocumentScreen(
             preferences = preferences,
             effectiveDark = effectiveDark,
             untitledHeading = untitledHeading,
+            copyLabel = copyLabel,
+            copiedLabel = copiedLabel,
         )
     }
 
@@ -161,6 +174,8 @@ internal fun DocumentScreen(
                     preferences = requestedRender.preferences,
                     effectiveDark = requestedRender.effectiveDark,
                     untitledHeading = requestedRender.untitledHeading,
+                    copyLabel = requestedRender.copyLabel,
+                    copiedLabel = requestedRender.copiedLabel,
                 )
             }
             cachedRenderedMarkdown = rendered
@@ -172,12 +187,18 @@ internal fun DocumentScreen(
         renderedRequest != requestedRender
     val renderedMarkdown = cachedRenderedMarkdown
     val readerController = remember(documentKey) { MarkdownReaderController() }
+    val undoHistory = remember(documentKey) { EditorUndoHistory(editorValue) }
+    var editorInitialScrollProgress by remember(documentKey) { mutableFloatStateOf(0f) }
+    var editorScrollSyncToken by remember(documentKey) { mutableIntStateOf(0) }
     var toolbarVisible by rememberSaveable(documentKey) { mutableStateOf(true) }
     var showTableOfContents by rememberSaveable(documentKey) { mutableStateOf(false) }
     var showSearch by rememberSaveable(documentKey) { mutableStateOf(false) }
     var searchQuery by rememberSaveable(documentKey) { mutableStateOf("") }
     var searchResult by remember(documentKey) { mutableStateOf(SearchResult()) }
     var currentHeadingId by rememberSaveable(documentKey) { mutableStateOf<String?>(null) }
+    val currentHeadingTitle = remember(renderedMarkdown, currentHeadingId) {
+        renderedMarkdown?.headings?.firstOrNull { it.id == currentHeadingId }?.title
+    }
     var predictiveBackGestureActive by remember(documentKey) { mutableStateOf(false) }
     val immersiveReading = mode == DocumentMode.READING &&
         !loading &&
@@ -260,6 +281,11 @@ internal fun DocumentScreen(
         if (showSearch) readerController.search(searchQuery)
     }
 
+    val handleEditorChanged: (TextFieldValue) -> Unit = { updated ->
+        undoHistory.record(updated)
+        onEditorChanged(updated)
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -269,6 +295,14 @@ internal fun DocumentScreen(
                     name = name,
                     dirty = dirty,
                     saving = saving,
+                    canUndo = undoHistory.canUndo,
+                    canRedo = undoHistory.canRedo,
+                    onUndo = {
+                        undoHistory.undo()?.let(onEditorChanged)
+                    },
+                    onRedo = {
+                        undoHistory.redo()?.let(onEditorChanged)
+                    },
                     onBack = ::leaveDocument,
                     onRead = { onModeChanged(DocumentMode.READING) },
                     onSave = onSave,
@@ -279,7 +313,7 @@ internal fun DocumentScreen(
             AnimatedVisibility(visible = mode == DocumentMode.EDITING && !loading) {
                 EditorToolbar(
                     value = editorValue,
-                    onValueChange = onEditorChanged,
+                    onValueChange = handleEditorChanged,
                     enabled = !saving,
                 )
             }
@@ -304,6 +338,7 @@ internal fun DocumentScreen(
                             documentUri = documentUri,
                             renderedMarkdown = requireNotNull(renderedMarkdown),
                             initialScrollY = readerScrollY,
+                            currentHeadingTitle = currentHeadingTitle,
                             controller = readerController,
                             onPositionChanged = onReaderPositionChanged,
                             onToolbarVisibilityChanged = { visible ->
@@ -315,8 +350,10 @@ internal fun DocumentScreen(
 
                         DocumentMode.EDITING -> MarkdownEditor(
                             value = editorValue,
-                            onValueChange = onEditorChanged,
+                            onValueChange = handleEditorChanged,
                             enabled = !saving,
+                            initialScrollProgress = editorInitialScrollProgress,
+                            scrollSyncToken = editorScrollSyncToken,
                         )
                     }
                 }
@@ -374,7 +411,29 @@ internal fun DocumentScreen(
                             showSearch = true
                             toolbarVisible = true
                         },
-                        onEdit = { onModeChanged(DocumentMode.EDITING) },
+                        onEdit = {
+                            val progress = readerController.currentScrollProgress()
+                            val targetOffset = findEditorOffsetForHeadingOrProgress(
+                                markdown = editorValue.text,
+                                headingTitle = currentHeadingTitle,
+                                progress = progress,
+                            )
+                            val syncedProgress =
+                                if (editorValue.text.isNotEmpty() && currentHeadingTitle != null) {
+                                    (targetOffset.toFloat() / editorValue.text.length.toFloat())
+                                        .coerceIn(0f, 1f)
+                                } else {
+                                    progress
+                                }
+                            editorInitialScrollProgress = syncedProgress
+                            editorScrollSyncToken += 1
+                            val updatedValue = editorValue.copy(
+                                selection = TextRange(targetOffset, targetOffset),
+                            )
+                            undoHistory.record(updatedValue)
+                            onEditorChanged(updatedValue)
+                            onModeChanged(DocumentMode.EDITING)
+                        },
                         onAppearance = onAppearance,
                     )
                 }
@@ -457,6 +516,10 @@ private fun DocumentTopBar(
     name: String,
     dirty: Boolean,
     saving: Boolean,
+    canUndo: Boolean,
+    canRedo: Boolean,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
     onBack: () -> Unit,
     onRead: () -> Unit,
     onSave: () -> Unit,
@@ -492,6 +555,24 @@ private fun DocumentTopBar(
             }
         },
         actions = {
+            IconButton(
+                onClick = onUndo,
+                enabled = canUndo && !saving,
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Outlined.Undo,
+                    contentDescription = stringResource(R.string.undo_edit),
+                )
+            }
+            IconButton(
+                onClick = onRedo,
+                enabled = canRedo && !saving,
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Outlined.Redo,
+                    contentDescription = stringResource(R.string.redo_edit),
+                )
+            }
             IconButton(onClick = onRead) {
                 Icon(
                     Icons.Outlined.Visibility,

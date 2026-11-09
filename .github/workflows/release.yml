@@ -70,6 +70,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: "platform-tools"
 
       - name: Install stable Android SDK 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
@@ -263,9 +265,11 @@ jobs:
             RELEASE_FLAGS=(--prerelease)
           else
             cat > "$NOTES" <<'EOF'
-          This is a draft signed candidate. Do not publish it as a stable release until the exact attached APK passes Mora's documented real-device gate.
+          Signed public release of Mora (`de.unbow.mora`). See [CHANGELOG.md](https://github.com/bjcdeshu/mora-markdown/blob/main/CHANGELOG.md) for full release notes.
+
+          Mora (`de.unbow.mora`) 已签名正式发布版。完整更新说明请参阅 [CHANGELOG.md](https://github.com/bjcdeshu/mora-markdown/blob/main/CHANGELOG.md)，可使用随附的 `.sha256` 文件校验 APK 完整性。
           EOF
-            RELEASE_FLAGS=(--draft --prerelease)
+            RELEASE_FLAGS=(--latest)
           fi
 
           gh release create "$GITHUB_REF_NAME" \

@@ -1,7 +1,9 @@
 package de.unbow.mora.ui
 
+import androidx.compose.ui.text.input.TextFieldValue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -279,6 +281,50 @@ class ReaderPositionMarkerTest {
         assertFalse(isInternalReaderLocation("https", "example.com", "/"))
         assertFalse(isInternalReaderLocation("https", "mora.invalid", "/another-document"))
         assertFalse(isInternalReaderLocation(null, "mora.invalid", "/"))
+    }
+
+    @Test
+    fun formatsReadingProgressLabelWithOrWithoutHeadingTitle() {
+        assertEquals("64%", formatReadingProgressLabel(null, 0.642f))
+        assertEquals("0%", formatReadingProgressLabel("   ", -0.2f))
+        assertEquals("Architecture · 50%", formatReadingProgressLabel("Architecture", 0.5f))
+        assertEquals(
+            "Very Long Section Tit… · 100%",
+            formatReadingProgressLabel("Very Long Section Title Here", 1.2f, maxHeadingLength = 22),
+        )
+    }
+
+    @Test
+    fun findsEditorOffsetForCurrentHeadingOrScrollProgressAndSupportsUndoRedo() {
+        val markdown = """
+            # Intro
+
+            First paragraph.
+
+            ## Architecture
+
+            Details here.
+        """.trimIndent()
+
+        val headingOffset = findEditorOffsetForHeadingOrProgress(
+            markdown = markdown,
+            headingTitle = "Architecture",
+            progress = 0.1f,
+        )
+        assertTrue(markdown.substring(headingOffset).startsWith("## Architecture"))
+
+        val history = EditorUndoHistory(TextFieldValue("One"))
+        assertFalse(history.canUndo)
+        assertFalse(history.canRedo)
+
+        history.record(TextFieldValue("One Two"))
+        history.record(TextFieldValue("One Two Three"))
+        assertTrue(history.canUndo)
+        assertEquals("One Two", history.undo()?.text)
+        assertTrue(history.canRedo)
+        assertEquals("One", history.undo()?.text)
+        assertNull(history.undo())
+        assertEquals("One Two", history.redo()?.text)
     }
 
     private fun marker(

@@ -1,6 +1,8 @@
 package de.unbow.mora.ui
 
 import android.animation.ValueAnimator
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Canvas
@@ -14,6 +16,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import android.view.accessibility.AccessibilityManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -276,6 +279,30 @@ internal fun isInternalReaderLocation(
         host.equals(READER_BASE_HOST, ignoreCase = true) &&
         (path.isNullOrEmpty() || path == "/")
 
+internal fun formatReadingProgressLabel(
+    headingTitle: String?,
+    progress: Float,
+    maxHeadingLength: Int = 22,
+): String {
+    val percent = (progress.coerceIn(0f, 1f) * 100f).roundToInt()
+    val cleanHeading = headingTitle?.trim()?.takeIf { it.isNotEmpty() }
+    if (cleanHeading == null) return "$percent%"
+    val truncated = if (cleanHeading.length > maxHeadingLength) {
+        cleanHeading.take(maxHeadingLength - 1).trimEnd() + "…"
+    } else {
+        cleanHeading
+    }
+    return "$truncated · $percent%"
+}
+
+private class MoraJsBridge(private val context: Context) {
+    @JavascriptInterface
+    fun copyText(text: String) {
+        val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
+        clipboard.setPrimaryClip(ClipData.newPlainText("code", text))
+    }
+}
+
 @Suppress("DEPRECATION")
 private fun WebSettings.disableLegacyFileUrlAccess() {
     allowFileAccessFromFileURLs = false
@@ -288,6 +315,7 @@ internal fun MarkdownReader(
     documentUri: Uri?,
     renderedMarkdown: RenderedMarkdown,
     initialScrollY: Int,
+    currentHeadingTitle: String? = null,
     controller: MarkdownReaderController,
     onPositionChanged: (Uri, Int) -> Unit,
     onToolbarVisibilityChanged: (Boolean) -> Unit,
@@ -297,6 +325,8 @@ internal fun MarkdownReader(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val readingPositionMarkerColor = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
+    val pillBackgroundColor = MaterialTheme.colorScheme.inverseSurface.toArgb()
+    val pillTextColor = MaterialTheme.colorScheme.inverseOnSurface.toArgb()
     val webView = remember(context) {
         MoraReaderWebView(context).apply {
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
@@ -310,6 +340,7 @@ internal fun MarkdownReader(
             settings.loadsImagesAutomatically = true
             isVerticalScrollBarEnabled = false
             overScrollMode = WebView.OVER_SCROLL_NEVER
+            addJavascriptInterface(MoraJsBridge(context.applicationContext), "MoraBridge")
             webViewClient = MoraReaderWebViewClient(context, this)
         }
     }
@@ -321,6 +352,9 @@ internal fun MarkdownReader(
         }
         webView.onToolbarVisibilityChanged = onToolbarVisibilityChanged
         webView.readingPositionMarkerColor = readingPositionMarkerColor
+        webView.pillBackgroundColor = pillBackgroundColor
+        webView.pillTextColor = pillTextColor
+        webView.currentHeadingTitle = currentHeadingTitle
         controller.updateCallbacks(
             onCurrentHeadingChanged = onCurrentHeadingChanged,
             onSearchResult = onSearchResult,
@@ -466,6 +500,9 @@ internal class MarkdownReaderController {
         (webView as? MoraReaderWebView)?.publishPosition()
     }
 
+    fun currentScrollProgress(): Float =
+        (webView as? MoraReaderWebView)?.currentScrollProgress() ?: 0f
+
     fun requestCurrentHeading() {
         headingHandler.removeCallbacks(headingRunnable)
         headingHandler.postDelayed(headingRunnable, 120)
@@ -512,12 +549,31 @@ private class MoraReaderWebView(context: Context) : WebView(context) {
             field = value
             invalidate()
         }
+    var pillBackgroundColor: Int = Color.DKGRAY
+    var pillTextColor: Int = Color.WHITE
+    var currentHeadingTitle: String? = null
+        set(value) {
+            if (field != value) {
+                field = value
+                if (readingPositionDragInProgress) invalidate()
+            }
+        }
     var controller: MarkdownReaderController? = null
 
     private val positionHandler = Handler(Looper.getMainLooper())
     private val positionRunnable = Runnable { publishPosition() }
     private val readingPositionMarkerPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val readingPositionMarkerBounds = RectF()
+    private val pillBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val pillTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = 12f * resources.displayMetrics.density
+        isFakeBoldText = true
+    }
+    private val pillBounds = RectF()
+    private val pillHorizontalPadding = (12f * resources.displayMetrics.density)
+    private val pillVerticalPadding = (7f * resources.displayMetrics.density)
+    private val pillCornerRadius = (16f * resources.displayMetrics.density)
+    private val pillGapFromThumb = (14f * resources.displayMetrics.density)
     private val markerWidth = (2f * resources.displayMetrics.density)
     private val markerEndMargin = (2f * resources.displayMetrics.density)
     private val markerVerticalMargin = (12f * resources.displayMetrics.density)
@@ -635,6 +691,39 @@ private class MoraReaderWebView(context: Context) : WebView(context) {
                 markerWidth / 2f,
                 readingPositionMarkerPaint,
             )
+            if (readingPositionDragInProgress) {
+                val label = formatReadingProgressLabel(
+                    headingTitle = currentHeadingTitle,
+                    progress = readingPositionMarker.progress,
+                )
+                val textWidth = pillTextPaint.measureText(label)
+                val fontMetrics = pillTextPaint.fontMetrics
+                val textHeight = fontMetrics.descent - fontMetrics.ascent
+                val pillWidth = textWidth + pillHorizontalPadding * 2f
+                val pillHeight = textHeight + pillVerticalPadding * 2f
+                val thumbCenterY = (thumb.top + thumb.bottom) / 2f
+                val pillRight = (thumb.left - pillGapFromThumb).coerceAtLeast(pillWidth + 8f)
+                val pillLeft = (pillRight - pillWidth).coerceAtLeast(8f)
+                val pillTop = (thumbCenterY - pillHeight / 2f).coerceIn(
+                    readingPositionMarker.trackBounds.top,
+                    (readingPositionMarker.trackBounds.bottom - pillHeight)
+                        .coerceAtLeast(readingPositionMarker.trackBounds.top),
+                )
+                val pillBottom = pillTop + pillHeight
+                pillBounds.set(pillLeft, pillTop, pillRight, pillBottom)
+                pillBackgroundPaint.color = pillBackgroundColor
+                pillBackgroundPaint.alpha = 238
+                pillTextPaint.color = pillTextColor
+                drawRoundRect(
+                    pillBounds,
+                    pillCornerRadius,
+                    pillCornerRadius,
+                    pillBackgroundPaint,
+                )
+                val textX = pillLeft + pillHorizontalPadding
+                val textY = pillTop + pillVerticalPadding - fontMetrics.ascent
+                drawText(label, textX, textY, pillTextPaint)
+            }
         }
     }
 
@@ -707,6 +796,15 @@ private class MoraReaderWebView(context: Context) : WebView(context) {
         positionHandler.removeCallbacks(positionRunnable)
         val documentUri = pageKey?.documentUri ?: return
         onPositionChanged(documentUri, scrollY)
+    }
+
+    fun currentScrollProgress(): Float {
+        refreshReadingPositionMarkerGeometry(revealIdleIfNew = false)
+        return if (readingPositionMarker.isScrollable) {
+            readingPositionMarker.progress.coerceIn(0f, 1f)
+        } else {
+            0f
+        }
     }
 
     fun beginPageLoad() {
@@ -846,6 +944,7 @@ private class MoraReaderWebView(context: Context) : WebView(context) {
         )
         scrollTo(scrollX, targetOffset.coerceIn(0, readingPositionMarker.maximumOffset))
         setReadingPositionMarkerAlpha(READER_MARKER_DRAG_ALPHA)
+        controller?.requestCurrentHeading()
     }
 
     private fun switchActivePointer(event: MotionEvent) {
