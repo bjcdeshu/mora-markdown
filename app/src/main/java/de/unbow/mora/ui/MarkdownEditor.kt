@@ -21,6 +21,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
@@ -32,15 +38,105 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.unbow.mora.R
+import kotlin.math.roundToInt
+
+internal class EditorUndoHistory(
+    initialValue: TextFieldValue,
+    private val maxEntries: Int = 60,
+) {
+    private val entries = mutableStateListOf(initialValue)
+    private var currentIndex by mutableIntStateOf(0)
+
+    val canUndo: Boolean
+        get() = currentIndex > 0
+
+    val canRedo: Boolean
+        get() = currentIndex < entries.lastIndex
+
+    fun reset(value: TextFieldValue) {
+        entries.clear()
+        entries.add(value)
+        currentIndex = 0
+    }
+
+    fun record(value: TextFieldValue) {
+        val current = entries.getOrNull(currentIndex)
+        if (current != null && current.text == value.text) {
+            entries[currentIndex] = value
+            return
+        }
+        while (entries.lastIndex > currentIndex) {
+            entries.removeAt(entries.lastIndex)
+        }
+        entries.add(value)
+        if (entries.size > maxEntries) {
+            entries.removeAt(0)
+        }
+        currentIndex = entries.lastIndex
+    }
+
+    fun undo(): TextFieldValue? {
+        if (!canUndo) return null
+        currentIndex -= 1
+        return entries[currentIndex]
+    }
+
+    fun redo(): TextFieldValue? {
+        if (!canRedo) return null
+        currentIndex += 1
+        return entries[currentIndex]
+    }
+}
+
+internal fun findEditorOffsetForHeadingOrProgress(
+    markdown: String,
+    headingTitle: String?,
+    progress: Float,
+): Int {
+    if (markdown.isEmpty()) return 0
+    val cleanHeading = headingTitle?.trim()?.takeIf { it.isNotEmpty() }
+    if (cleanHeading != null) {
+        val headingRegex = Regex(
+            """(?m)^#{1,6}\s+${Regex.escape(cleanHeading)}\s*$""",
+        )
+        headingRegex.find(markdown)?.let { match ->
+            return match.range.first.coerceIn(0, markdown.length)
+        }
+    }
+    val clampedProgress = progress.coerceIn(0f, 1f)
+    if (clampedProgress <= 0f) return 0
+    val rawOffset = (markdown.length * clampedProgress).roundToInt().coerceIn(0, markdown.length)
+    val lineStart = markdown.lastIndexOf('\n', startIndex = (rawOffset - 1).coerceAtLeast(0))
+    return if (lineStart < 0) 0 else (lineStart + 1).coerceIn(0, markdown.length)
+}
 
 @Composable
 internal fun MarkdownEditor(
     value: TextFieldValue,
     onValueChange: (TextFieldValue) -> Unit,
     enabled: Boolean = true,
+    initialScrollProgress: Float = 0f,
+    scrollSyncToken: Int = 0,
 ) {
     val scrollState = rememberScrollState()
     val cursorColor = MaterialTheme.colorScheme.primary
+    var appliedScrollToken by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(scrollSyncToken, scrollState.maxValue) {
+        if (scrollSyncToken > 0 && scrollSyncToken != appliedScrollToken) {
+            val clamped = initialScrollProgress.coerceIn(0f, 1f)
+            if (clamped == 0f) {
+                appliedScrollToken = scrollSyncToken
+                scrollState.scrollTo(0)
+            } else if (scrollState.maxValue > 0) {
+                appliedScrollToken = scrollSyncToken
+                val targetScroll = (scrollState.maxValue * clamped)
+                    .roundToInt()
+                    .coerceIn(0, scrollState.maxValue)
+                scrollState.scrollTo(targetScroll)
+            }
+        }
+    }
 
     Box(
         modifier = Modifier

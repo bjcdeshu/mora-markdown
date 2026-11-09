@@ -25,16 +25,19 @@ data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val darkSurfaceStyle: DarkSurfaceStyle = DarkSurfaceStyle.DEFAULT,
     val launcherIcon: LauncherIcon = LauncherIcon.INDIGO,
+    val useDynamicColor: Boolean = false,
 )
 
 fun decodeAppSettings(
     themeMode: String?,
     darkSurfaceStyle: String?,
     launcherIcon: String?,
+    useDynamicColor: Boolean? = null,
 ): AppSettings = AppSettings(
     themeMode = decodeEnum(themeMode, ThemeMode.SYSTEM),
     darkSurfaceStyle = decodeEnum(darkSurfaceStyle, DarkSurfaceStyle.DEFAULT),
     launcherIcon = decodeEnum(launcherIcon, LauncherIcon.INDIGO),
+    useDynamicColor = useDynamicColor ?: false,
 )
 
 class AppSettingsRepository internal constructor(
@@ -50,6 +53,7 @@ class AppSettingsRepository internal constructor(
             themeMode = storedValues[themeModeKey] as? String,
             darkSurfaceStyle = storedValues[darkSurfaceStyleKey] as? String,
             launcherIcon = storedValues[launcherIconKey] as? String,
+            useDynamicColor = storedValues[useDynamicColorKey] as? Boolean,
         )
     }
 
@@ -58,6 +62,7 @@ class AppSettingsRepository internal constructor(
             putString(themeModeKey, settings.themeMode.name)
             putString(darkSurfaceStyleKey, settings.darkSurfaceStyle.name)
             putString(launcherIconKey, settings.launcherIcon.name)
+            putBoolean(useDynamicColorKey, settings.useDynamicColor)
         }
     }
 
@@ -66,6 +71,7 @@ class AppSettingsRepository internal constructor(
         const val themeModeKey = "theme_mode"
         const val darkSurfaceStyleKey = "dark_surface_style"
         const val launcherIconKey = "launcher_icon"
+        const val useDynamicColorKey = "use_dynamic_color"
     }
 }
 

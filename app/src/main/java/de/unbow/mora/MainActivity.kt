@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
             MoraTheme(
                 themeMode = appSettings.themeMode,
                 darkSurfaceStyle = appSettings.darkSurfaceStyle,
+                useDynamicColor = appSettings.useDynamicColor,
             ) {
                 MoraApp(
                     appSettings = appSettings,

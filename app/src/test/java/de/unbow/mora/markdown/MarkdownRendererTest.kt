@@ -139,4 +139,49 @@ class MarkdownRendererTest {
             rendered.headings,
         )
     }
+
+    @Test
+    fun `renders code blocks with language header copy button and syntax highlighting`() {
+        val rendered = MarkdownRenderer.render(
+            markdown = """
+                ```kotlin
+                // Sample comment
+                val count = 42
+                val title = "Mora"
+                ```
+            """.trimIndent(),
+            palette = palette,
+            preferences = ReaderPreferences.Default,
+            effectiveDark = false,
+            untitledHeading = "Untitled heading",
+            copyLabel = "Copy",
+            copiedLabel = "Copied",
+        )
+
+        assertTrue(rendered.html.contains("""class="code-block""""))
+        assertTrue(rendered.html.contains("""<span class="code-lang">kotlin</span>"""))
+        assertTrue(rendered.html.contains("""class="code-copy""""))
+        assertTrue(rendered.html.contains("""class="tok-com">// Sample comment</span>"""))
+        assertTrue(rendered.html.contains("""class="tok-kw">val</span>"""))
+        assertTrue(rendered.html.contains("""class="tok-num">42</span>"""))
+        assertTrue(rendered.html.contains("""class="tok-str">&quot;Mora&quot;</span>"""))
+    }
+
+    @Test
+    fun `applies serif font family and warm paper surface tone when requested`() {
+        val rendered = MarkdownRenderer.render(
+            markdown = "# Warm Serif",
+            palette = palette,
+            preferences = ReaderPreferences(
+                fontFamily = ReaderFontFamily.SERIF,
+                surfaceTone = ReaderSurfaceTone.WARM_PAPER,
+            ),
+            effectiveDark = false,
+            untitledHeading = "Untitled heading",
+        )
+
+        assertTrue(rendered.html.contains("Noto Serif CJK SC"))
+        assertTrue(rendered.html.contains("background: #F6F1E6"))
+        assertTrue(rendered.html.contains("id=\"mora-lightbox\""))
+    }
 }
